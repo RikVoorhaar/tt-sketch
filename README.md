@@ -27,7 +27,7 @@ All numerical experiments in the preprint can be reproduced using the scripts st
 The documentation for this project lives here: [tt-sketch.readthedocs.io](https://tt-sketch.readthedocs.io).
 
 ## Credits
-All code for this project is written by [Rik Voorhaar](https://rikvoorhaar.com), in a joint project with Bart Vanderycken and Daniel Kressner. This work was supported by the Swiss National Science Foundation under [research project 192363](https://data.snf.ch/grants/grant/192363).
+All code for this project is written by [Rik Voorhaar](https://rikvoorhaar.com), in a joint project with  Daniel Kressner and Bart Vandereycken. This work was supported by the Swiss National Science Foundation under [research project 192363](https://data.snf.ch/grants/grant/192363).
 
 This software is free to use and edit. When using this software for academic purposes, please cite the following preprint:
 
