@@ -512,9 +512,13 @@ class TensorSum(Tensor):
 
     def __repr__(self) -> str:
         return (
-            f"<Sum of {len(self.tensors)} tensors of shape {self.shape}"
+            f"<Sum of {self.num_summands} tensors of shape {self.shape}"
             f" at {hex(id(self))}>"
         )
+    
+    @property
+    def num_summands(self) -> int:
+        return len(self.tensors)
 
 
 class CPTensor(Tensor):

@@ -23,8 +23,8 @@ def hilbert_tensor(n_dims: int, size: int) -> npt.NDArray:
 
 def sqrt_tensor(shape: Tuple[int, ...], a=-0.2, b=2) -> npt.NDArray:
     """Create a tensor of specified shape with square root of a sum a grid.
-    
-    Values of grid entries vary between a and b. """
+
+    Values of grid entries vary between a and b."""
 
     def sqrt_sum(X):
         return np.sqrt(np.abs(np.sum(X, axis=0)))
@@ -155,6 +155,10 @@ def process_tt_rank(
         rank_tuple = tuple(rank)  # type: ignore
     except TypeError:
         rank_tuple = (rank,) * (len(shape) - 1)  # type: ignore
+    if len(rank_tuple) != len(shape) - 1:
+        raise ValueError(
+            f"TT-rank {rank_tuple} doesn't have right number of elements"
+        )
     if trim:
         rank_tuple = trim_ranks(shape, rank_tuple)
 

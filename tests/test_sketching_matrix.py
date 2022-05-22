@@ -26,7 +26,11 @@ from tt_sketch.tensor import (
     DenseTensor,
     # SketchedTensorTrain,
 )
-from tt_sketch.sketch import stream_sketch, blocked_stream_sketch
+from tt_sketch.sketch import (
+    stream_sketch,
+    blocked_stream_sketch,
+    orthogonal_sketch,
+)
 
 DRM_DICT = {drm_type.__name__: drm_type for drm_type in ALL_DRM}
 
@@ -178,8 +182,10 @@ def general_exact_recovery(
     seed,
     left_drm_type,
     right_drm_type,
+    orthogonalize=False,
 ):
-    tt_sketched = stream_sketch(
+    sketch_method = stream_sketch if not orthogonalize else orthogonal_sketch
+    tt_sketched = sketch_method(
         X_tensor,
         left_rank,
         right_rank,
@@ -191,7 +197,7 @@ def general_exact_recovery(
     error = np.linalg.norm(tt_sketched_dense - X_dense)
     assert error < 1e-9
 
-    tt_sketched2 = stream_sketch(
+    tt_sketched2 = sketch_method(
         X_tensor,
         left_rank,
         right_rank,
@@ -205,7 +211,7 @@ def general_exact_recovery(
     # machine epsilon
     assert np.allclose(tt_sketched_dense, tt_sketched_dense2)
 
-    tt_sketched3 = stream_sketch(
+    tt_sketched3 = sketch_method(
         X_tensor,
         left_rank,
         right_rank,
@@ -233,7 +239,8 @@ assert len(sparse_drm_pairs) > 0
 @pytest.mark.parametrize("drm_types", sparse_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 5])
-def test_exact_recovery_sparse(n_dims, rank, drm_types):
+@pytest.mark.parametrize("orthogonalize", [True, False])
+def test_exact_recovery_sparse(n_dims, rank, drm_types, orthogonalize):
     seed = 180
     X_shape = tuple(range(9, 9 + n_dims))
     X_tt = TensorTrain.random(X_shape, rank)
@@ -248,7 +255,14 @@ def test_exact_recovery_sparse(n_dims, rank, drm_types):
     left_drm = DRM_DICT[drm_types[0]]
     right_drm = DRM_DICT[drm_types[1]]
     general_exact_recovery(
-        X, X_sparse, left_rank, right_rank, seed, left_drm, right_drm
+        X,
+        X_sparse,
+        left_rank,
+        right_rank,
+        seed,
+        left_drm,
+        right_drm,
+        orthogonalize=orthogonalize,
     )
 
     if issubclass(left_drm, CanSlice) and issubclass(right_drm, CanSlice):
@@ -308,9 +322,19 @@ def test_sketch_dense(n_dims):
         right_drm_type=DenseGaussianDRM,
     )
     assert np.linalg.norm(stt.to_numpy() - tensor.to_numpy()) < 1e-9
+    stt = orthogonal_sketch(
+        tensor,
+        left_rank,
+        right_rank,
+        seed=seed,
+        left_drm_type=DenseGaussianDRM,
+        right_drm_type=DenseGaussianDRM,
+    )
+    assert np.linalg.norm(stt.to_numpy() - tensor.to_numpy()) < 1e-9
 
 
-def test_tensor_sum_parallel():
+@pytest.mark.parametrize("orthogonalize", [True, False])
+def test_tensor_sum_parallel(orthogonalize):
     seed = 179
     rank = 4
     n_dims = 4
@@ -341,6 +365,7 @@ def test_tensor_sum_parallel():
         seed,
         left_drm_type,
         right_drm_type,
+        orthogonalize=orthogonalize,
     )
     general_exact_recovery(
         X1,
@@ -350,6 +375,7 @@ def test_tensor_sum_parallel():
         seed,
         left_drm_type,
         right_drm_type,
+        orthogonalize=orthogonalize,
     )
     # Sketching is linear, so doing it as (parallel) sum should give same result
     stt1 = stream_sketch(X_sparse_sum16, left_rank, right_rank, seed)
@@ -392,7 +418,8 @@ assert len(tt_drm_pairs) > 0
 @pytest.mark.parametrize("drm_types", tt_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 3])
-def test_exact_recovery_tt(n_dims, rank, drm_types):
+@pytest.mark.parametrize("orthogonalize", [True, False])
+def test_exact_recovery_tt(n_dims, rank, drm_types, orthogonalize):
     seed = 180
     X_shape = tuple(range(10, 10 + n_dims))
     X_tt = TensorTrain.random(X_shape, rank, seed=seed)
@@ -412,6 +439,7 @@ def test_exact_recovery_tt(n_dims, rank, drm_types):
         seed,
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
+        orthogonalize=orthogonalize,
     )
 
     if issubclass(left_drm_type, CanSlice) and issubclass(
@@ -451,7 +479,8 @@ assert len(cp_drm_pairs) > 0
 @pytest.mark.parametrize("drm_types", cp_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 3])
-def test_exact_recovery_cp(n_dims, rank, drm_types):
+@pytest.mark.parametrize("orthogonalize", [True, False])
+def test_exact_recovery_cp(n_dims, rank, drm_types, orthogonalize):
     seed = 180
     X_shape = tuple(range(10, 10 + n_dims))
     X_cp = CPTensor.random(X_shape, rank, seed=seed)
@@ -471,6 +500,7 @@ def test_exact_recovery_cp(n_dims, rank, drm_types):
         seed,
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
+        orthogonalize=orthogonalize,
     )
 
     if issubclass(left_drm_type, CanSlice) and issubclass(

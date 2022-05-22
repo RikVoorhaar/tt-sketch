@@ -1,4 +1,5 @@
 # %%
+from cgi import test
 from operator import ne
 
 from matplotlib.pyplot import get
@@ -10,7 +11,7 @@ from tt_sketch.tensor import (
     SketchedTensorTrain,
     CPTensor,
 )
-from tt_sketch.drm import TensorTrainDRM
+from tt_sketch.drm import TensorTrainDRM, DenseGaussianDRM
 from tt_sketch.sketching_methods.tensor_train_sketch import (
     tensor_train_sketch,
 )
@@ -34,9 +35,12 @@ next(sketch_generator)
 
 # %%
 
-left_rank = rank
-right_rank = rank + 1
-tt = TensorTrain.random(shape, rank)
+shape = (10, 3, 5)
+rank = 2
+tt_rank = (2, 3)
+tt = TensorTrain.random(shape, tt_rank)
+left_rank = tt_rank
+right_rank = tuple(r + 1 for r in tt_rank)
 left_drm = TensorTrainDRM(left_rank, shape, transpose=False)
 right_drm = TensorTrainDRM(right_rank, shape, transpose=True)
 sketch_stream = general_sketch(tt, left_drm, right_drm)
@@ -82,5 +86,63 @@ tt_orthog = TensorTrain(sketch_orthog.Psi_cores)
 tt_stream = SketchedTensorTrain(sketch_stream).to_tt()
 tt_orthog.mse_error(tensor_sum), tt_stream.mse_error(tensor_sum)
 # %%
-list(get_sketch_method(tensor_sum, left_drm)(tensor_sum))
-list(get_sketch_method(sparse_tensor, left_drm)(sparse_tensor))
+tensor_numpy = hilbert_tensor(4, 10)
+shape = tensor_numpy.shape
+tensor_dense = DenseTensor(shape, tensor_numpy)
+left_drm = TensorTrainDRM(left_rank + 3, shape, transpose=False)
+right_drm = TensorTrainDRM(right_rank + 10, shape, transpose=True)
+print([M.shape for M in left_drm.sketch_dense(tensor_dense)])
+print([M.shape for M in right_drm.sketch_dense(tensor_dense)])
+
+left_drm = DenseGaussianDRM(left_rank + 3, shape, transpose=False)
+right_drm = DenseGaussianDRM(right_rank + 10, shape, transpose=True)
+print([M.shape for M in left_drm.sketch_dense(tensor_dense)])
+print([M.shape for M in right_drm.sketch_dense(tensor_dense)])
+
+# %%
+tensor_numpy = hilbert_tensor(4, 5)
+shape = tensor_numpy.shape
+tensor_dense = DenseTensor(shape, tensor_numpy)
+left_drm = TensorTrainDRM(left_rank + 3, shape, transpose=False)
+right_drm = TensorTrainDRM(right_rank + 10, shape, transpose=True)
+print(left_drm.rank)
+print(right_drm.rank)
+sketch_stream = general_sketch(tensor_dense, left_drm, right_drm)
+try:
+    sketch_orthog = general_sketch(
+        tensor_dense, left_drm, right_drm, orthogonalize=True
+    )
+except StopIteration:
+    raise ValueError("Sketch failed")
+tt_orthog = TensorTrain(sketch_orthog.Psi_cores)
+tt_stream = SketchedTensorTrain(sketch_stream).to_tt()
+tt_orthog.mse_error(tensor_dense), tt_stream.mse_error(tensor_dense)
+
+
+# %%
+
+import sys
+
+sys.path.append("../test")
+from tests.test_sketching_matrix import (
+    test_exact_recovery_sparse,
+    test_sketch_dense,
+    test_tensor_sum_parallel,
+)
+
+test_exact_recovery_sparse(2, 3, "TensorTrainDRM|TensorTrainDRM", True)
+# test_tensor_sum_parallel()
+
+# %%
+from tt_sketch.utils import matricize
+from tt_sketch.drm import DenseGaussianDRM
+import numpy as np
+
+X = np.random.normal(size=(10, 5, 8, 9))
+X_dense = DenseTensor(X.shape, X)
+matricize(X, range(2), mat_shape=True).shape
+left_drm = DenseGaussianDRM(2, X.shape, transpose=False)
+right_drm = DenseGaussianDRM(3, X.shape, transpose=True)
+[m.shape for m in right_drm.sketch_dense(X)]
+
+# %%

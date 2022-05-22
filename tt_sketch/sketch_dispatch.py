@@ -20,7 +20,11 @@ from tt_sketch.sketching_methods.cp_sketch import (
     sketch_omega_cp,
     sketch_psi_cp,
 )
-from tt_sketch.sketching_methods.dense_sketch import dense_sketch
+from tt_sketch.sketching_methods.dense_sketch import (
+    dense_sketch,
+    sketch_omega_dense,
+    sketch_psi_dense,
+)
 from tt_sketch.sketching_methods.sparse_sketch import (
     sketch_omega_sparse,
     sketch_psi_sparse,
@@ -66,14 +70,14 @@ DRM_SKETCH_METHOD_DISPATCH = {
 OMEGA_METHODS = {
     SparseTensor: sketch_omega_sparse,
     TensorTrain: sketch_omega_tt,
-    # DenseTensor: sketch_omega_dense,
+    DenseTensor: sketch_omega_dense,
     CPTensor: sketch_omega_cp,
 }
 
 PSI_METHODS = {
     SparseTensor: sketch_psi_sparse,
     TensorTrain: sketch_psi_tt,
-    # DenseTensor: sketch_psi_dense,
+    DenseTensor: sketch_psi_dense,
     CPTensor: sketch_psi_cp,
 }
 
@@ -113,6 +117,11 @@ def sketch_psi_sum(
     **kwargs,
 ) -> npt.NDArray:
     psi = np.zeros(psi_shape)
+    if left_sketch_array is None:
+        left_sketch_array = (None,) * tensor.num_summands
+    if right_sketch_array is None:
+        right_sketch_array = (None,) * tensor.num_summands
+
     for summand, left_sketch, right_sketch in zip(
         tensor.tensors, left_sketch_array, right_sketch_array
     ):
@@ -130,7 +139,7 @@ def sketch_psi_sum(
 PSI_METHODS[TensorSum] = sketch_psi_sum
 
 
-def sum_sketch(tensor: TensorSum, *,drm: DRM):
+def sum_sketch(tensor: TensorSum, *, drm: DRM):
     sketch_generators = []
     for summand in tensor.tensors:
         sketch_generators.append(get_sketch_method(summand, drm)(summand))
@@ -193,7 +202,7 @@ def general_sketch(
     # Compute Omega matrices
     omega_method = OMEGA_METHODS[type(tensor)]
     for mu in range(n_dims - 1):
-        omega_shape = (left_drm.rank[mu], right_drm.rank[mu])
+        omega_shape = (left_drm.rank[mu], right_drm.rank[::-1][mu])
         Omega_mats.append(
             omega_method(
                 left_contractions[mu],
@@ -222,7 +231,7 @@ def general_sketch(
             r1 = 1
         if mu < n_dims - 1:
             right_sketch = right_contractions[mu]
-            r2 = right_drm.rank[mu]
+            r2 = right_drm.rank[::-1][mu]
         else:
             right_sketch = None
             r2 = 1

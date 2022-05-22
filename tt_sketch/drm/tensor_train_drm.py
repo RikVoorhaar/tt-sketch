@@ -8,14 +8,17 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
     CansketchCP,
+    CansketchDense,
 )
 from tt_sketch.drm_base import handle_transpose, CanSlice
-from tt_sketch.tensor import SparseTensor, TensorTrain, CPTensor
+from tt_sketch.tensor import SparseTensor, TensorTrain, CPTensor, DenseTensor
 from tt_sketch.utils import ArrayList, ArrayGenerator
 
 
 # TODO: Store DRM as a tensor.TensorTrain
-class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
+class TensorTrainDRM(
+    CansketchSparse, CansketchTT, CansketchCP, CanSlice, CansketchDense
+):
     """Sketcher using Tensor Trains"""
 
     cores: ArrayList
@@ -81,3 +84,18 @@ class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
                     "ij,ki,jkl->il", lr_contract, tensor_core, drm_core
                 )
             yield lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
+
+    @handle_transpose
+    def sketch_dense(self, tensor: DenseTensor) -> ArrayGenerator:
+        n_dims = len(self.shape)
+        partial_contraction = self.cores[0].reshape(-1, self.cores[0].shape[-1])
+        yield partial_contraction.T
+        for mu in range(1,n_dims - 1):
+            core = self.cores[mu]
+            partial_contraction = np.einsum(
+                "ij,jkl->ikl", partial_contraction, core
+            )
+            partial_contraction = partial_contraction.reshape(
+                -1, partial_contraction.shape[-1]
+            )
+            yield partial_contraction.T

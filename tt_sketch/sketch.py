@@ -32,7 +32,7 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchCP,
 )
 from tt_sketch.sketch_dispatch import (
-    sum_sketch,
+    general_sketch,
     SKETCHING_METHODS,
     ABSTRACT_TENSOR_SKETCH_DISPATCH,
 )
@@ -64,8 +64,8 @@ def stream_sketch(
     """
     Perform a streaming sketch of a tensor
     """
-    sketch_method, default_drm_type = _get_sketch_method_default_drm(tensor)
     d = len(tensor.shape)
+    default_drm_type = get_default_drm_type(tensor)
 
     left_rank_bigger = bool(np.all(np.array(left_rank) > np.array(right_rank)))
     right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
@@ -118,7 +118,7 @@ def stream_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = sketch_method(tensor, left_drm, right_drm, orthogonalize=False)
+    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=False)
 
     sketched = SketchedTensorTrain(sketch)
     if return_drm:  # this really is mostly for testing purposes
@@ -141,7 +141,7 @@ def orthogonal_sketch(
     """
     Perform a streaming sketch of a tensor
     """
-    sketch_method, default_drm_type = _get_sketch_method_default_drm(tensor)
+    default_drm_type = get_default_drm_type(tensor)
     d = len(tensor.shape)
 
     right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
@@ -190,33 +190,31 @@ def orthogonal_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = sketch_method(tensor, left_drm, right_drm, orthogonalize=True)
+    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=True)
 
-    sketched = SketchedTensorTrain(sketch)
+    sketched = TensorTrain(sketch.Psi_cores)
     if return_drm:  # this really is mostly for testing purposes
         return sketched, left_drm, right_drm  # type: ignore
     else:
         return sketched
 
 
-def _get_sketch_method_default_drm(
-    tensor: Tensor,
-) -> Tuple[Any, Type[DRM]]:
-    """Figure out which sketching method makes the most sense for a tensor"""
+def get_default_drm_type(tensor: Tensor) -> Type[DRM]:
+    """
+    Get the default DRM type for a given tensor.
+    """
     if isinstance(tensor, TensorSum):
-        sketch_method = sum_sketch
         matching_drms = set()
         for X in tensor.tensors:
-            _, drm = _get_sketch_method_default_drm(X)
+            drm = get_default_drm_type(X)
             matching_drms.add(drm)
         if len(matching_drms) > 0:
-            return sketch_method, list(matching_drms)[0]  # type: ignore
+            return list(matching_drms)[0]  # type: ignore
     else:
         for tensor_type, sketch_type in ABSTRACT_TENSOR_SKETCH_DISPATCH.items():
             if isinstance(tensor, tensor_type):
-                sketch_method = SKETCHING_METHODS[sketch_type]  # type: ignore
                 default_drm_type = DEFAULT_DRM[sketch_type]
-                return sketch_method, default_drm_type  # type: ignore
+                return default_drm_type  # type: ignore
 
     # No matching method found
     raise ValueError(
@@ -233,8 +231,6 @@ def _blocked_stream_sketch_components(
     right_rank_slices: List[Tuple[int, ...]],
     excluded_entries: Optional[Sequence[Tuple[int, int]]] = None,
 ) -> BlockedSketch:
-    shape = tensor.shape
-    sketch_method, _ = _get_sketch_method_default_drm(tensor)
     if excluded_entries is None:
         excluded_entries = []
     block_left_sketches = [
@@ -252,8 +248,11 @@ def _blocked_stream_sketch_components(
         for j, right_sketch_slice in enumerate(block_right_sketches):
             if (i, j) in excluded_entries:
                 continue
-            sketch_block = sketch_method(
-                tensor, left_sketch_slice, right_sketch_slice
+            sketch_block = general_sketch(
+                tensor,
+                left_sketch_slice,
+                right_sketch_slice,
+                orthogonalize=False,
             )
             sketch_dict[(i, j)] = sketch_block
 
