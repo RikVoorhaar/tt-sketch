@@ -6,13 +6,7 @@ from tt_sketch.drm_base import DRM
 from tt_sketch.tensor import DenseTensor
 from tt_sketch.utils import ArrayGenerator, matricize
 from tt_sketch.sketch_container import SketchContainer
-
-
-class CansketchDense(DRM, ABC):
-    @abstractmethod
-    def sketch_dense(self, tensor: DenseTensor) -> ArrayGenerator:
-        r"""Return list of dense sketching matrices. Of shape
-        ``(np.prod(tensor.shape[ :mu+1]), rank[mu])``"""
+from tt_sketch.sketching_methods.abstract_methods import CansketchDense
 
 
 def dense_sketch(

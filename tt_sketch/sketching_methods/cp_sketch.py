@@ -9,16 +9,7 @@ from tt_sketch.drm_base import DRM
 from tt_sketch.tensor import CPTensor
 from tt_sketch.utils import ArrayGenerator, ArrayList
 from tt_sketch.sketch_container import SketchContainer
-
-
-class CansketchCP(DRM, ABC):
-    @abstractmethod
-    def sketch_cp(self, tensor: CPTensor) -> ArrayGenerator:
-        r"""List of contractions of form :math:`Y_\mu^\top T_{\leq\mu}` where
-        :math:`X_\mu` is DRM, and :math"`T_{\leq\mu}` the
-        contraction of the first :math:`\mu` cores of ``tensor``.
-
-        Returns array of shape ``(tensor.rank[mu], drm.rank[mu])``"""
+from tt_sketch.sketching_methods.abstract_methods import CansketchCP
 
 
 def cp_sketch(

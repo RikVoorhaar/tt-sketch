@@ -4,9 +4,11 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from tt_sketch.sketching_methods.sparse_sketch import CansketchSparse
-from tt_sketch.sketching_methods.tensor_train_sketch import CansketchTT
-from tt_sketch.sketching_methods.cp_sketch import CansketchCP
+from tt_sketch.sketching_methods import (
+    CansketchSparse,
+    CansketchTT,
+    CansketchCP,
+)
 from tt_sketch.drm_base import handle_transpose, CanSlice
 from tt_sketch.tensor import SparseTensor, TensorTrain, CPTensor
 from tt_sketch.utils import ArrayList, ArrayGenerator
@@ -33,16 +35,16 @@ class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
         else:
             tt_shape = self.shape
             tt_rank = self.true_rank
-        tt = TensorTrain.random(tt_shape, tt_rank, self.seed)
-        self.cores = tt.cores[:-1]
+        if "cores" not in kwargs:
+            tt = TensorTrain.random(tt_shape, tt_rank, self.seed)
+            self.cores = tt.cores[:-1]
+        else:
+            self.cores = kwargs["cores"]
 
     @handle_transpose
     def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
-        core_slices = [
-            core_slice[:, tensor.indices[i], :]
-            for i, core_slice in enumerate(self.cores)
-        ]
-        for mu, core_slice in enumerate(core_slices):
+        for mu, core in enumerate(self.cores):
+            core_slice = core[:, tensor.indices[mu], :]
             if mu == 0:
                 lr_contract = core_slice.reshape(core_slice.shape[1:])
             else:

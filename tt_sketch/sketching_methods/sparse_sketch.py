@@ -10,18 +10,7 @@ from tt_sketch.tensor import SparseTensor
 from tt_sketch.utils import ArrayGenerator, ArrayList
 from tt_sketch.drm_base import DRM
 from tt_sketch.sketch_container import SketchContainer
-
-
-class CansketchSparse(DRM, ABC):
-    rank: Tuple[int, ...]
-
-    @abstractmethod
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
-        """Computes list of sketching matrices sampled into a vector using the
-        indices of ``tensor`` for each unfolding. Shape of each vector is
-        ``v[mu] = (rank[mu], tensor.nnz)``. This way the contraction between
-        ``tensor`` and the sketching matrix is of form ``np.dot(tensor.entries,
-        v[mu])``"""
+from tt_sketch.sketching_methods.abstract_methods import CansketchSparse
 
 
 def _Psi_core_slice(
@@ -105,6 +94,5 @@ def sparse_sketch(
                 j,
             )
         Psi_cores.append(Psi)
-
 
     return SketchContainer(Psi_cores, Omega_mats)

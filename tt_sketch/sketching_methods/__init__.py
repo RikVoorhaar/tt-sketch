@@ -1,18 +1,15 @@
 from typing import Callable, Dict, Type
-from tt_sketch.sketching_methods.sparse_sketch import (
-    sparse_sketch,
+from tt_sketch.sketching_methods.sparse_sketch import sparse_sketch
+from tt_sketch.sketching_methods.tensor_train_sketch import tensor_train_sketch
+from tt_sketch.sketching_methods.cp_sketch import cp_sketch
+from tt_sketch.sketching_methods.abstract_methods import (
+    CansketchCP,
+    CansketchDense,
     CansketchSparse,
-)
-from tt_sketch.sketching_methods.tensor_train_sketch import (
-    tensor_train_sketch,
     CansketchTT,
 )
-from tt_sketch.sketching_methods.cp_sketch import cp_sketch, CansketchCP
 
-from tt_sketch.sketching_methods.dense_sketch import (
-    dense_sketch,
-    CansketchDense,
-)
+from tt_sketch.sketching_methods.dense_sketch import dense_sketch
 from tt_sketch.tensor import (
     DenseTensor,
     SparseTensor,

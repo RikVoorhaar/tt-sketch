@@ -4,7 +4,7 @@ from typing import Dict, Optional, Tuple, Union, Any
 from copy import deepcopy
 
 import numpy as np
-from tt_sketch.sketching_methods import (
+from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
     CansketchDense,
