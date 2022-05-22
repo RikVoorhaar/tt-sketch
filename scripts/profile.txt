@@ -1,0 +1,31 @@
+         66 function calls in 0.596 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.373    0.373    0.510    0.510 fast_lazy_gaussian.pyx:116(_inds_to_sparse_sign)
+        1    0.082    0.082    0.136    0.136 fast_lazy_gaussian.pyx:54(_inds_to_rand_double)
+        2    0.054    0.027    0.054    0.027 fast_lazy_gaussian.pyx:15(hash_int_c)
+        1    0.050    0.050    0.559    0.559 fast_lazy_gaussian.pyx:151(inds_to_sparse_sign)
+        1    0.036    0.036    0.036    0.036 {built-in method numpy.array}
+        1    0.001    0.001    0.596    0.596 <string>:1(<module>)
+        1    0.000    0.000    0.596    0.596 {built-in method builtins.exec}
+        3    0.000    0.000    0.000    0.000 stringsource:999(memoryview_fromslice)
+       10    0.000    0.000    0.000    0.000 stringsource:345(__cinit__)
+        7    0.000    0.000    0.000    0.000 stringsource:657(memoryview_cwrapper)
+        1    0.000    0.000    0.000    0.000 {built-in method numpy.asarray}
+        1    0.000    0.000    0.000    0.000 <__array_function__ internals>:2(reshape)
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:38(_wrapit)
+        1    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.implement_array_function}
+        1    0.000    0.000    0.000    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:51(_wrapfunc)
+       10    0.000    0.000    0.000    0.000 stringsource:372(__dealloc__)
+        1    0.000    0.000    0.559    0.559 {tt_sketch.drm.fast_lazy_gaussian.inds_to_sparse_sign}
+        3    0.000    0.000    0.000    0.000 stringsource:976(__dealloc__)
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:198(reshape)
+        7    0.000    0.000    0.000    0.000 stringsource:663(memoryview_check)
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.getattr}
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+        1    0.000    0.000    0.000    0.000 fromnumeric.py:193(_reshape_dispatcher)
+        3    0.000    0.000    0.000    0.000 stringsource:518(__getbuffer__)
+        3    0.000    0.000    0.000    0.000 stringsource:559(__get__)
