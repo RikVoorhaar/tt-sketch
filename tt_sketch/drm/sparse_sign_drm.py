@@ -7,7 +7,7 @@ from tt_sketch.drm.fast_lazy_gaussian import (
     inds_to_sparse_sign,
 )  # type: ignore
 from tt_sketch.drm_base import handle_transpose, CanSlice
-from tt_sketch.sketching_methods import CansketchSparse
+from tt_sketch.sketching_methods.abstract_methods import CansketchSparse
 from tt_sketch.tensor import SparseTensor
 from tt_sketch.utils import ArrayGenerator, ArrayList
 

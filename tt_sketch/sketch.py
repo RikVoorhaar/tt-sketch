@@ -3,7 +3,17 @@ from __future__ import annotations
 
 from functools import cached_property
 from re import L
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    Any,
+)
 
 import numpy as np
 import numpy.typing as npt
@@ -15,14 +25,16 @@ from tt_sketch.drm import (
     ALL_DRM,
 )
 from tt_sketch.drm_base import DRM, CanSlice, CanIncreaseRank
-from tt_sketch.sketching_methods import (
-    SKETCHING_METHODS,
-    TENSOR_SKETCH_DISPATCH,
+from tt_sketch.sketching_methods.abstract_methods import (
     CansketchDense,
     CansketchSparse,
     CansketchTT,
     CansketchCP,
+)
+from tt_sketch.sketch_dispatch import (
     sum_sketch,
+    SKETCHING_METHODS,
+    ABSTRACT_TENSOR_SKETCH_DISPATCH,
 )
 from tt_sketch.tensor import Tensor, TensorTrain, TensorSum, SketchedTensorTrain
 from tt_sketch.utils import ArrayList, TTRank, process_tt_rank, right_mul_pinv
@@ -36,9 +48,6 @@ DEFAULT_DRM = {
 }
 
 BlockedSketch = Dict[Tuple[int, int], SketchContainer]
-
-
-SKETCH_METHOD_SIGNATURE = Callable[[Tensor, DRM, DRM], SketchContainer]
 
 
 def stream_sketch(
@@ -64,7 +73,7 @@ def stream_sketch(
         raise ValueError(
             f"Left ranks or right ranks must be conistently larger or smaller "
             f"than the other. Left rank: {left_rank}, "
-            f"right side rank: {right_rank}"
+            f"right rank: {right_rank}"
         )
 
     if seed is None:
@@ -109,7 +118,79 @@ def stream_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = sketch_method(tensor, left_drm, right_drm)
+    sketch = sketch_method(tensor, left_drm, right_drm, orthogonalize=False)
+
+    sketched = SketchedTensorTrain(sketch)
+    if return_drm:  # this really is mostly for testing purposes
+        return sketched, left_drm, right_drm  # type: ignore
+    else:
+        return sketched
+
+
+def orthogonal_sketch(
+    tensor: Tensor,
+    left_rank: TTRank,
+    right_rank: TTRank,
+    seed: Optional[int] = None,
+    left_drm_type: Optional[Type[DRM]] = None,
+    right_drm_type: Optional[Type[DRM]] = None,
+    left_drm: Optional[DRM] = None,
+    right_drm: Optional[DRM] = None,
+    return_drm: bool = False,
+) -> SketchedTensorTrain:
+    """
+    Perform a streaming sketch of a tensor
+    """
+    sketch_method, default_drm_type = _get_sketch_method_default_drm(tensor)
+    d = len(tensor.shape)
+
+    right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
+    if not right_rank_bigger:
+        raise ValueError(
+            f"The right rank needs to be larger than the left rank. "
+            f"Left rank: {left_rank}, "
+            f"right rank: {right_rank}"
+        )
+
+    if seed is None:
+        seed = np.mod(hash(np.random.uniform()), 2**32)
+
+    if left_drm is None:
+        if left_drm_type is None:
+            if right_drm_type is not None:
+                left_drm_type = right_drm_type
+            else:
+                left_drm_type = default_drm_type
+        left_rank = process_tt_rank(left_rank, tensor.shape, trim=True)
+        left_drm = left_drm_type(
+            left_rank, transpose=False, shape=tensor.shape, seed=seed
+        )
+    else:
+        if left_drm.rank != left_rank:
+            raise ValueError(
+                f"Left rank {left_rank} does not match the rank of the DRM "
+                f"{left_drm.rank}."
+            )
+
+    if right_drm is None:
+        if right_drm_type is None:
+            if left_drm_type is not None:
+                right_drm_type = left_drm_type
+            else:
+                right_drm_type = default_drm_type
+        right_rank = process_tt_rank(right_rank, tensor.shape, trim=False)
+        right_seed = np.mod(seed + hash(str(d)), 2**32)
+        right_drm = right_drm_type(
+            right_rank, transpose=True, shape=tensor.shape, seed=right_seed
+        )
+    else:
+        if tuple(right_drm.rank[::-1]) != right_rank:
+            raise ValueError(
+                f"Right rank {right_rank} does not match the rank of the DRM "
+                f"{right_drm.rank}."
+            )
+
+    sketch = sketch_method(tensor, left_drm, right_drm, orthogonalize=True)
 
     sketched = SketchedTensorTrain(sketch)
     if return_drm:  # this really is mostly for testing purposes
@@ -120,7 +201,7 @@ def stream_sketch(
 
 def _get_sketch_method_default_drm(
     tensor: Tensor,
-) -> Tuple[SKETCH_METHOD_SIGNATURE, Type[DRM]]:
+) -> Tuple[Any, Type[DRM]]:
     """Figure out which sketching method makes the most sense for a tensor"""
     if isinstance(tensor, TensorSum):
         sketch_method = sum_sketch
@@ -131,7 +212,7 @@ def _get_sketch_method_default_drm(
         if len(matching_drms) > 0:
             return sketch_method, list(matching_drms)[0]  # type: ignore
     else:
-        for tensor_type, sketch_type in TENSOR_SKETCH_DISPATCH.items():
+        for tensor_type, sketch_type in ABSTRACT_TENSOR_SKETCH_DISPATCH.items():
             if isinstance(tensor, tensor_type):
                 sketch_method = SKETCHING_METHODS[sketch_type]  # type: ignore
                 default_drm_type = DEFAULT_DRM[sketch_type]

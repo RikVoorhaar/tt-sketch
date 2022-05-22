@@ -13,6 +13,7 @@ def dense_sketch(
     tensor: DenseTensor,
     left_drm: CansketchDense,
     right_drm: CansketchDense,
+    orthogonalize: bool = False,
 ) -> SketchContainer:
     n_dims = len(tensor.shape)
     tensor_data = tensor.data
@@ -49,7 +50,8 @@ def dense_sketch(
             Psi_cores.append(Psi)
 
             tensor_mat = tensor_ord3.reshape(
-                tensor_ord3.shape[0] * tensor_ord3.shape[1], tensor_ord3.shape[2]
+                tensor_ord3.shape[0] * tensor_ord3.shape[1],
+                tensor_ord3.shape[2],
             )
             Omega = Y_mats[mu] @ tensor_mat @ X_mats[mu].T
             Omega_mats.append(Omega)

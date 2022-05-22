@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from tt_sketch.sketching_methods import (
+from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
     CansketchCP,

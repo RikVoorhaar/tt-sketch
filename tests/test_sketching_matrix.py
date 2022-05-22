@@ -13,7 +13,7 @@ from tt_sketch.drm import (
     DenseGaussianDRM,
 )
 from tt_sketch.drm_base import CanSlice, CanIncreaseRank
-from tt_sketch.sketching_methods import (
+from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
     CansketchCP,
