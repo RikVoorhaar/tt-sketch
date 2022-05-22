@@ -9,7 +9,7 @@ from tt_sketch.sketching_methods import (
     CansketchTT,
     CansketchDense,
 )
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList
 from tt_sketch.tensor import SparseTensor, TensorTrain, DenseTensor
 from tt_sketch.drm_base import handle_transpose, CanIncreaseRank
 
@@ -46,25 +46,24 @@ class DenseGaussianDRM(
             self.sketching_mats.append(sketching_mat)
 
     @handle_transpose
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayList:
-        sketching_vecs = []
+    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
         d = len(tensor.shape)
         for mu in range(d - 1):
             shape = tensor.shape[: mu + 1]
             inds = tensor.indices[: mu + 1]
             inds = np.ravel_multi_index(inds, shape)  # type: ignore
-            sketching_vecs.append(self.sketching_mats[mu][:, inds])
-        return sketching_vecs
+            sketching_vec = self.sketching_mats[mu][:, inds]
+            yield sketching_vec
 
     @handle_transpose
-    def sketch_tt(self, tensor: TensorTrain) -> ArrayList:
+    def sketch_tt(self, tensor: TensorTrain) -> ArrayGenerator:
         r"""Contract sketching matrix with :math:`Phi_{\leq \mu}`"""
         partial_contracts = tensor.partial_dense("lr")
-        sketch = []
         for sm, pc in zip(self.sketching_mats, partial_contracts):
-            sketch.append((sm @ pc).T)
-        return sketch
+            sketch = (sm @ pc).T
+            yield sketch
 
     @handle_transpose
-    def sketch_dense(self, tensor: DenseTensor) -> ArrayList:
-        return self.sketching_mats
+    def sketch_dense(self, tensor: DenseTensor) -> ArrayGenerator:
+        for mat in self.sketching_mats:
+            yield mat

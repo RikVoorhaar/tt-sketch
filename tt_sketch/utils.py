@@ -1,5 +1,5 @@
 # %%
-from typing import List, Sequence, Tuple, Union, Optional
+from typing import List, Sequence, Tuple, Union, Optional, Generator
 from functools import reduce
 from operator import mul
 
@@ -10,6 +10,7 @@ import numpy.typing as npt
 import scipy.linalg
 
 ArrayList = List[npt.NDArray[np.float64]]
+ArrayGenerator = Generator[npt.NDArray[np.float64], None, None]
 TTRank = Union[int, Tuple[int, ...]]
 
 

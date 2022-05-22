@@ -9,7 +9,7 @@ from tt_sketch.sketching_methods.tensor_train_sketch import CansketchTT
 from tt_sketch.sketching_methods.cp_sketch import CansketchCP
 from tt_sketch.drm_base import handle_transpose, CanSlice
 from tt_sketch.tensor import SparseTensor, TensorTrain, CPTensor
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayList, ArrayGenerator
 
 
 # TODO: Store DRM as a tensor.TensorTrain
@@ -37,29 +37,23 @@ class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
         self.cores = tt.cores[:-1]
 
     @handle_transpose
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayList:
+    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
         core_slices = [
             core_slice[:, tensor.indices[i], :]
             for i, core_slice in enumerate(self.cores)
         ]
-        sketching_mats = []
         for mu, core_slice in enumerate(core_slices):
             if mu == 0:
                 lr_contract = core_slice.reshape(core_slice.shape[1:])
             else:
                 lr_contract = np.einsum("ijk,ji->jk", core_slice, lr_contract)
-            sketching_mats.append(
-                lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
-            )
-
-        sketching_mats = [s.T for s in sketching_mats]
-        return sketching_mats
+            sketch_mat = lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
+            yield sketch_mat.T
 
     @handle_transpose
-    def sketch_tt(self, tensor: TensorTrain) -> ArrayList:
+    def sketch_tt(self, tensor: TensorTrain) -> ArrayGenerator:
         n_dims = len(self.shape)
 
-        sketching_mats = []
         for mu in range(n_dims - 1):
             tensor_core = tensor.cores[mu]
             drm_core = self.cores[mu]
@@ -69,17 +63,12 @@ class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
                 lr_contract = np.einsum(
                     "ij,ikl,jkm->lm", lr_contract, tensor_core, drm_core
                 )
-            sketching_mats.append(
-                lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
-            )
-
-        return sketching_mats
+            yield lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
 
     @handle_transpose
-    def sketch_cp(self, tensor: CPTensor) -> ArrayList:
+    def sketch_cp(self, tensor: CPTensor) -> ArrayGenerator:
         n_dims = len(self.shape)
 
-        sketching_mats = []
         for mu in range(n_dims - 1):
             tensor_core = tensor.cores[mu]
             drm_core = self.cores[mu]
@@ -89,8 +78,4 @@ class TensorTrainDRM(CansketchSparse, CansketchTT, CansketchCP, CanSlice):
                 lr_contract = np.einsum(
                     "ij,ki,jkl->il", lr_contract, tensor_core, drm_core
                 )
-            sketching_mats.append(
-                lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
-            )
-
-        return sketching_mats
+            yield lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]

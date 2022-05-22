@@ -4,13 +4,13 @@ from typing import Tuple
 import numpy as np
 from tt_sketch.drm_base import DRM
 from tt_sketch.tensor import DenseTensor
-from tt_sketch.utils import ArrayList, matricize
+from tt_sketch.utils import ArrayGenerator, matricize
 from tt_sketch.sketch_container import SketchContainer
 
 
 class CansketchDense(DRM, ABC):
     @abstractmethod
-    def sketch_dense(self, tensor: DenseTensor) -> ArrayList:
+    def sketch_dense(self, tensor: DenseTensor) -> ArrayGenerator:
         r"""Return list of dense sketching matrices. Of shape
         ``(np.prod(tensor.shape[ :mu+1]), rank[mu])``"""
 
@@ -22,8 +22,8 @@ def dense_sketch(
 ) -> SketchContainer:
     n_dims = len(tensor.shape)
     tensor_data = tensor.data
-    Y_mats = left_drm.sketch_dense(tensor)
-    X_mats = right_drm.sketch_dense(tensor)
+    Y_mats = list(left_drm.sketch_dense(tensor))
+    X_mats = list(right_drm.sketch_dense(tensor))
 
     Psi_cores = []
     Omega_mats = []

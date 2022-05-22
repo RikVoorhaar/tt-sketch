@@ -134,7 +134,8 @@ def handle_transpose(sketch: Callable) -> Callable:
 
         sketching_mats = sketch(self, tensor)
         if self.transpose:
-            sketching_mats = sketching_mats[::-1]
-        return sketching_mats
+            sketching_mats = list(sketching_mats)[::-1]
+        for mat in sketching_mats:
+            yield mat
 
     return wrapper

@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.tensor import SparseTensor
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList
 from tt_sketch.drm_base import DRM
 from tt_sketch.sketch_container import SketchContainer
 
@@ -16,7 +16,7 @@ class CansketchSparse(DRM, ABC):
     rank: Tuple[int, ...]
 
     @abstractmethod
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayList:
+    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
         """Computes list of sketching matrices sampled into a vector using the
         indices of ``tensor`` for each unfolding. Shape of each vector is
         ``v[mu] = (rank[mu], tensor.nnz)``. This way the contraction between
@@ -65,11 +65,17 @@ def sparse_sketch(
     d = len(tensor.shape)
     left_rank = left_drm.rank
     right_rank = right_drm.rank[::-1]
-    Y_mats = left_drm.sketch_sparse(tensor)
-    X_mats = right_drm.sketch_sparse(tensor)
+    Y_mats = list(left_drm.sketch_sparse(tensor))
+    X_mats = list(right_drm.sketch_sparse(tensor))
 
     Psi_cores = []
     Omega_mats = []
+
+    # Compute Omega matrices
+    for mu in range(d - 1):
+        T_mu = tensor.entries
+        Z_mat = (Y_mats[mu] * T_mu) @ X_mats[mu].T
+        Omega_mats.append(Z_mat)
 
     # Compute Psi cores
     for mu in range(d):
@@ -100,10 +106,5 @@ def sparse_sketch(
             )
         Psi_cores.append(Psi)
 
-    # Compute Z matrices
-    for mu in range(d - 1):
-        T_mu = tensor.entries
-        Z_mat = (Y_mats[mu] * T_mu) @ X_mats[mu].T
-        Omega_mats.append(Z_mat)
 
     return SketchContainer(Psi_cores, Omega_mats)

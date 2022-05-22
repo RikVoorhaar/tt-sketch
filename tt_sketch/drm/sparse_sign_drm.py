@@ -9,7 +9,7 @@ from tt_sketch.drm.fast_lazy_gaussian import (
 from tt_sketch.drm_base import handle_transpose, CanSlice
 from tt_sketch.sketching_methods.sparse_sketch import CansketchSparse
 from tt_sketch.tensor import SparseTensor
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 class SparseSignDRM(CansketchSparse, CanSlice):
@@ -28,9 +28,8 @@ class SparseSignDRM(CansketchSparse, CanSlice):
         self.nnz = num_non_zero_per_row
 
     @handle_transpose
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayList:
+    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
         d = len(tensor.shape)
-        sketching_mats = []
         for mu in range(d - 1):
             shape = tensor.shape[: mu + 1]
             sketch_seed = np.mod(
@@ -45,5 +44,4 @@ class SparseSignDRM(CansketchSparse, CanSlice):
                 self.nnz[mu],
                 sketch_seed,
             )
-            sketching_mats.append(sketch_mat.T)
-        return sketching_mats
+            yield sketch_mat.T

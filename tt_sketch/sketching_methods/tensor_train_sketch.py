@@ -6,13 +6,13 @@ from typing import List, Optional, Sequence, Tuple, Union
 import numpy as np
 from tt_sketch.drm_base import DRM
 from tt_sketch.tensor import TensorTrain
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList
 from tt_sketch.sketch_container import SketchContainer
 
 
 class CansketchTT(DRM, ABC):
     @abstractmethod
-    def sketch_tt(self, tensor: TensorTrain) -> ArrayList:
+    def sketch_tt(self, tensor: TensorTrain) -> ArrayGenerator:
         r"""List of contractions of form :math:`Y_\mu^\top T_{\leq\mu}` where
         :math:`X_\mu` is the DRM, and :math"`T_{\leq\mu}` the
         contraction of the first :math:`\mu` cores of ``tensor``.
@@ -33,13 +33,13 @@ def tensor_train_sketch(
     Psi_cores = []
     Omega_mats = []
 
-    # Compute Z matrices
+    # Compute Omega matrices
     for mu in range(n_dims - 1):
         L = left_contractions[mu]
         R = right_contractions[mu]
         Omega_mats.append(L.T @ R)
 
-    # Compute Y cores
+    # Compute Psi cores
     for mu in range(n_dims):
         tt_core = tensor.cores[mu]
         if mu == 0:

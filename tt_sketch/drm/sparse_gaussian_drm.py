@@ -9,7 +9,7 @@ from tt_sketch.drm.fast_lazy_gaussian import (
 from tt_sketch.drm_base import handle_transpose, CanIncreaseRank
 from tt_sketch.sketching_methods.sparse_sketch import CansketchSparse
 from tt_sketch.tensor import SparseTensor
-from tt_sketch.utils import ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 class SparseGaussianDRM(CansketchSparse, CanIncreaseRank):
@@ -24,9 +24,8 @@ class SparseGaussianDRM(CansketchSparse, CanIncreaseRank):
         super().__init__(rank, shape, transpose, seed=seed, **kwargs)
 
     @handle_transpose
-    def sketch_sparse(self, tensor: SparseTensor) -> ArrayList:
+    def sketch_sparse(self, tensor: SparseTensor) -> ArrayGenerator:
         d = len(tensor.shape)
-        sketching_mats = []
         for mu in range(d - 1):
             shape = tensor.shape[: mu + 1]
             sketch_seed = np.mod(
@@ -39,5 +38,4 @@ class SparseGaussianDRM(CansketchSparse, CanIncreaseRank):
                 self.rank_max[mu],
                 sketch_seed,
             )
-            sketching_mats.append(sketch_mat.T)
-        return sketching_mats
+            yield sketch_mat.T
