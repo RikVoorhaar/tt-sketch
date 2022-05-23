@@ -16,24 +16,24 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchTT,
 )
 from tt_sketch.sketching_methods.cp_sketch import (
-    cp_sketch,
+    # cp_sketch,
     sketch_omega_cp,
     sketch_psi_cp,
 )
 from tt_sketch.sketching_methods.dense_sketch import (
-    dense_sketch,
+    # dense_sketch,
     sketch_omega_dense,
     sketch_psi_dense,
 )
 from tt_sketch.sketching_methods.sparse_sketch import (
     sketch_omega_sparse,
     sketch_psi_sparse,
-    sparse_sketch,
+    # sparse_sketch,
 )
 from tt_sketch.sketching_methods.tensor_train_sketch import (
     sketch_omega_tt,
     sketch_psi_tt,
-    tensor_train_sketch,
+    # tensor_train_sketch,
 )
 from tt_sketch.tensor import (
     CPTensor,
@@ -45,12 +45,12 @@ from tt_sketch.tensor import (
 )
 from tt_sketch.utils import ArrayList, right_mul_pinv
 
-SKETCHING_METHODS = {
-    CansketchSparse: sparse_sketch,
-    CansketchTT: tensor_train_sketch,
-    CansketchDense: dense_sketch,
-    CansketchCP: cp_sketch,
-}
+# SKETCHING_METHODS = {
+#     CansketchSparse: sparse_sketch,
+#     CansketchTT: tensor_train_sketch,
+#     CansketchDense: dense_sketch,
+#     CansketchCP: cp_sketch,
+# }
 
 ABSTRACT_TENSOR_SKETCH_DISPATCH = {
     SparseTensor: CansketchSparse,
@@ -266,10 +266,10 @@ def general_sketch(
 #     return sketch
 
 
-SKETCHING_METHODS_TENSOR = {
-    SparseTensor: sparse_sketch,
-    TensorTrain: tensor_train_sketch,
-    DenseTensor: dense_sketch,
-    CPTensor: cp_sketch,
-    TensorSum: sum_sketch,
-}
+# SKETCHING_METHODS_TENSOR = {
+#     SparseTensor: sparse_sketch,
+#     TensorTrain: tensor_train_sketch,
+#     DenseTensor: dense_sketch,
+#     CPTensor: cp_sketch,
+#     TensorSum: sum_sketch,
+# }

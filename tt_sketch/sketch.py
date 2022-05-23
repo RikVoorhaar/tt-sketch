@@ -33,7 +33,6 @@ from tt_sketch.sketching_methods.abstract_methods import (
 )
 from tt_sketch.sketch_dispatch import (
     general_sketch,
-    SKETCHING_METHODS,
     ABSTRACT_TENSOR_SKETCH_DISPATCH,
 )
 from tt_sketch.tensor import Tensor, TensorTrain, TensorSum, SketchedTensorTrain
@@ -137,7 +136,7 @@ def orthogonal_sketch(
     left_drm: Optional[DRM] = None,
     right_drm: Optional[DRM] = None,
     return_drm: bool = False,
-) -> SketchedTensorTrain:
+) -> TensorTrain:
     """
     Perform a streaming sketch of a tensor
     """
