@@ -402,7 +402,7 @@ def test_tensor_sum_parallel(orthogonalize):
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
-    assert stt4.to_tt().mse_error(X2) < 1e-3
+    assert stt4.to_tt().mse_error(X2) < 1e-2
 
 
 tt_drm_list = [

@@ -29,6 +29,10 @@ class Tensor(ABC):
     def T(self) -> Tensor:
         pass
 
+    @abstractproperty
+    def size(self) -> int:
+        pass
+
     @abstractmethod
     def to_numpy(self) -> npt.NDArray[np.float64]:
         pass
@@ -39,6 +43,13 @@ class Tensor(ABC):
             other = other.to_numpy()
         square_error = np.linalg.norm(self.to_numpy() - other) ** 2
         return square_error / np.prod(self.shape)
+
+    def relative_error(self, other: Union[Tensor, npt.NDArray]) -> float:
+        """Computes the relative error"""
+        if isinstance(other, Tensor):
+            other = other.to_numpy()
+        error = np.linalg.norm(self.to_numpy() - other)
+        return float(error / np.linalg.norm(other))
 
     @property
     def ndim(self) -> int:
@@ -81,6 +92,10 @@ class DenseTensor(Tensor):
         new_data = np.transpose(self.data, permutation)
         return self.__class__(new_shape, new_data)
 
+    @property
+    def size(self) -> int:
+        return np.prod(self.shape)
+
     def __getitem__(self, key):
         new_data = self.data.__getitem__(key)
         new_shape = new_data.shape
@@ -99,14 +114,22 @@ class DenseTensor(Tensor):
 @dataclass
 class SparseTensor(Tensor):
     shape: Tuple[int, ...]
-    indices: npt.NDArray
+    indices: Union[npt.NDArray, Tuple[npt.NDArray, ...]]
     entries: npt.NDArray[np.float64]
+
+    def __post_init__(self):
+        if isinstance(self.indices, tuple):
+            self.indices = np.stack(self.indices)
 
     @property
     def T(self) -> SparseTensor:
         new_indices = self.indices[::-1]
         new_shape = self.shape[::-1]
         return self.__class__(new_shape, new_indices, self.entries)
+
+    @property
+    def size(self) -> int:
+        return self.nnz * (self.ndim + 1)
 
     @property
     def nnz(self) -> int:
@@ -120,11 +143,11 @@ class SparseTensor(Tensor):
                 summand_slice = slice(i * block_size, (i + 1) * block_size)
             else:
                 summand_slice = slice(i * block_size, self.nnz)
-
+            summand_indices = tuple(ind[summand_slice] for ind in self.indices)
             summands.append(
                 SparseTensor(
                     self.shape,
-                    self.indices[:, summand_slice],
+                    summand_indices,
                     self.entries[summand_slice],
                 )
             )
@@ -143,6 +166,19 @@ class SparseTensor(Tensor):
             f"<Sparse tensor of shape {self.shape} with {self.nnz} non-zero"
             f" entries at {hex(id(self))}>"
         )
+
+    @classmethod
+    def random(
+        cls, shape: Tuple[int, ...], nnz: int, seed: Optional[int] = None
+    ) -> SparseTensor:
+        """Generates a random CPTensor with `nnz` non-zero gaussian entries"""
+        if seed is not None:
+            np.random.seed(seed)
+        total_size = np.prod(shape)
+        indices_flat = np.random.choice(total_size, size=nnz, replace=False)
+        indices = np.unravel_index(indices_flat, shape)
+        entries = np.random.normal(size=nnz)
+        return cls(shape, indices, entries)
 
 
 class TensorTrain(Tensor):
@@ -304,6 +340,10 @@ class TensorTrain(Tensor):
     def __truediv__(self, other: Union[float, int]):
         return self.__mul__(1 / other)
 
+    @property
+    def size(self) -> int:
+        return sum(core.size for core in self.cores)
+
     def add(self, other: TensorTrain) -> TensorTrain:
         """Add two ``TensorTrain`` by taking direct sums of cores.
         Note, this does not overload the addition operator ``+``; the addition
@@ -386,6 +426,12 @@ class SketchedTensorTrain(Tensor):
         return self.sketch_.Psi_cores
 
     @property
+    def size(self) -> int:
+        total_Psi_size = sum(Psi.size for Psi in self.Psi_cores)
+        total_Omega_size = sum(Omega.size for Omega in self.Omega_mats)
+        return total_Psi_size + total_Omega_size
+
+    @property
     def Omega_mats(self) -> ArrayList:
         return self.sketch_.Omega_mats
 
@@ -427,7 +473,6 @@ class SketchedTensorTrain(Tensor):
         )
 
 
-# TODO: make left and right version. Pick best by default
 def assemble_sketched_tt(
     sketch: SketchContainer,
     eps: float = 1e-15,
@@ -487,6 +532,10 @@ class TensorSum(Tensor):
         self.tensors = tensors
 
     @property
+    def size(self) -> int:
+        return sum(tensor.size for tensor in self.tensors)
+
+    @property
     def T(self) -> TensorSum:
         new_tensors = [X.T for X in self.tensors]
         return self.__class__(new_tensors)
@@ -515,7 +564,7 @@ class TensorSum(Tensor):
             f"<Sum of {self.num_summands} tensors of shape {self.shape}"
             f" at {hex(id(self))}>"
         )
-    
+
     @property
     def num_summands(self) -> int:
         return len(self.tensors)
@@ -534,6 +583,9 @@ class CPTensor(Tensor):
         self.cores = cores
         self.rank = cores[0].shape[1]
         self.shape = tuple(C.shape[0] for C in cores)
+
+    def size(self) -> int:
+        return sum(C.size for C in self.cores)
 
     @property
     def T(self) -> CPTensor:

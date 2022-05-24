@@ -16,24 +16,20 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchTT,
 )
 from tt_sketch.sketching_methods.cp_sketch import (
-    # cp_sketch,
     sketch_omega_cp,
     sketch_psi_cp,
 )
 from tt_sketch.sketching_methods.dense_sketch import (
-    # dense_sketch,
     sketch_omega_dense,
     sketch_psi_dense,
 )
 from tt_sketch.sketching_methods.sparse_sketch import (
     sketch_omega_sparse,
     sketch_psi_sparse,
-    # sparse_sketch,
 )
 from tt_sketch.sketching_methods.tensor_train_sketch import (
     sketch_omega_tt,
     sketch_psi_tt,
-    # tensor_train_sketch,
 )
 from tt_sketch.tensor import (
     CPTensor,
@@ -44,13 +40,6 @@ from tt_sketch.tensor import (
     TensorTrain,
 )
 from tt_sketch.utils import ArrayList, right_mul_pinv
-
-# SKETCHING_METHODS = {
-#     CansketchSparse: sparse_sketch,
-#     CansketchTT: tensor_train_sketch,
-#     CansketchDense: dense_sketch,
-#     CansketchCP: cp_sketch,
-# }
 
 ABSTRACT_TENSOR_SKETCH_DISPATCH = {
     SparseTensor: CansketchSparse,
@@ -101,7 +90,7 @@ def sketch_omega_sum(
             tensor=summand,
             omega_shape=omega_shape,
             **kwargs,
-        )
+        )  # type: ignore
     return omega
 
 
@@ -132,7 +121,7 @@ def sketch_psi_sum(
             tensor=summand,
             psi_shape=psi_shape,
             **kwargs,
-        )
+        )  # type: ignore
     return psi
 
 
@@ -210,7 +199,7 @@ def general_sketch(
                 tensor=tensor,
                 mu=mu,
                 omega_shape=omega_shape,
-            )
+            )  # type: ignore
         )
 
     if orthogonalize:
@@ -239,7 +228,7 @@ def general_sketch(
         psi_shape = (r1, tensor.shape[mu], r2)
         Psi = psi_method(
             left_sketch, right_sketch, tensor=tensor, mu=mu, psi_shape=psi_shape
-        )
+        )  # type: ignore
         if orthogonalize and mu < n_dims - 1:
             Psi = orth_step(Psi, Omega_mats[mu])
         Psi_cores.append(Psi)

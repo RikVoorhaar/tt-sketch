@@ -4,11 +4,12 @@ import numpy.typing as npt
 import numpy as np
 from py import process
 from tt_sketch.utils import ArrayList, TTRank, matricize, process_tt_rank
-from tt_sketch.tensor import TensorTrain
+from tt_sketch.tensor import Tensor, TensorTrain
 
 
-def tt_svd(tensor: npt.NDArray, rank: Optional[TTRank] = None) -> TensorTrain:
+def tt_svd(tensor: Tensor, rank: Optional[TTRank] = None) -> TensorTrain:
     """Compute the TT-SVD of an array in a left-to-right sweep"""
+    tensor_numpy = tensor.to_numpy()
     shape = tensor.shape
     n_dims = len(shape)
     if rank is None:
@@ -17,7 +18,7 @@ def tt_svd(tensor: npt.NDArray, rank: Optional[TTRank] = None) -> TensorTrain:
     new_rank = list(rank)
     tt_cores = []
 
-    tensor_mat = matricize(tensor, 0)
+    tensor_mat = matricize(tensor_numpy, 0)
     U, S, V = np.linalg.svd(tensor_mat, full_matrices=False)
     r = max(min(U.shape[1], new_rank[0]), 1)
     new_rank[0] = r

@@ -64,7 +64,7 @@ def stream_sketch(
     Perform a streaming sketch of a tensor
     """
     d = len(tensor.shape)
-    default_drm_type = get_default_drm_type(tensor)
+    # default_drm_type = get_default_drm_type(tensor)
 
     left_rank_bigger = bool(np.all(np.array(left_rank) > np.array(right_rank)))
     right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
@@ -83,7 +83,7 @@ def stream_sketch(
             if right_drm_type is not None:
                 left_drm_type = right_drm_type
             else:
-                left_drm_type = default_drm_type
+                left_drm_type = TensorTrainDRM
         left_rank = process_tt_rank(
             left_rank, tensor.shape, trim=right_rank_bigger
         )
@@ -102,7 +102,7 @@ def stream_sketch(
             if left_drm_type is not None:
                 right_drm_type = left_drm_type
             else:
-                right_drm_type = default_drm_type
+                right_drm_type = TensorTrainDRM
         right_rank = process_tt_rank(
             right_rank, tensor.shape, trim=left_rank_bigger
         )
@@ -140,7 +140,7 @@ def orthogonal_sketch(
     """
     Perform a streaming sketch of a tensor
     """
-    default_drm_type = get_default_drm_type(tensor)
+    # default_drm_type = get_default_drm_type(tensor)
     d = len(tensor.shape)
 
     right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
@@ -159,7 +159,7 @@ def orthogonal_sketch(
             if right_drm_type is not None:
                 left_drm_type = right_drm_type
             else:
-                left_drm_type = default_drm_type
+                left_drm_type = TensorTrainDRM
         left_rank = process_tt_rank(left_rank, tensor.shape, trim=True)
         left_drm = left_drm_type(
             left_rank, transpose=False, shape=tensor.shape, seed=seed
@@ -176,7 +176,7 @@ def orthogonal_sketch(
             if left_drm_type is not None:
                 right_drm_type = left_drm_type
             else:
-                right_drm_type = default_drm_type
+                right_drm_type = TensorTrainDRM
         right_rank = process_tt_rank(right_rank, tensor.shape, trim=False)
         right_seed = np.mod(seed + hash(str(d)), 2**32)
         right_drm = right_drm_type(
@@ -198,28 +198,29 @@ def orthogonal_sketch(
         return sketched
 
 
-def get_default_drm_type(tensor: Tensor) -> Type[DRM]:
-    """
-    Get the default DRM type for a given tensor.
-    """
-    if isinstance(tensor, TensorSum):
-        matching_drms = set()
-        for X in tensor.tensors:
-            drm = get_default_drm_type(X)
-            matching_drms.add(drm)
-        if len(matching_drms) > 0:
-            return list(matching_drms)[0]  # type: ignore
-    else:
-        for tensor_type, sketch_type in ABSTRACT_TENSOR_SKETCH_DISPATCH.items():
-            if isinstance(tensor, tensor_type):
-                default_drm_type = DEFAULT_DRM[sketch_type]
-                return default_drm_type  # type: ignore
+# def get_default_drm_type(tensor: Tensor) -> Type[DRM]:
+#     """
+#     Get the default DRM type for a given tensor.
+#     """
+#     if isinstance(tensor, TensorSum):
+#         # matching_drms = set()
+#         # for X in tensor.tensors:
+#         #     drm = get_default_drm_type(X)
+#         #     matching_drms.add(drm)
+#         # if len(matching_drms) > 0:
+#         #     return list(matching_drms)[0]  # type: ignore
+#         return TensorTrainDRM
+#     else:
+#         for tensor_type, sketch_type in ABSTRACT_TENSOR_SKETCH_DISPATCH.items():
+#             if isinstance(tensor, tensor_type):
+#                 default_drm_type = DEFAULT_DRM[sketch_type]
+#                 return default_drm_type  # type: ignore
 
-    # No matching method found
-    raise ValueError(
-        f"""No sketching methods available for tensor of type
-        {type(tensor)}"""
-    )
+#     # No matching method found
+#     raise ValueError(
+#         f"""No sketching methods available for tensor of type
+#         {type(tensor)}"""
+#     )
 
 
 def _blocked_stream_sketch_components(

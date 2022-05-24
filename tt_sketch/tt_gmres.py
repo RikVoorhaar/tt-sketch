@@ -41,6 +41,10 @@ class MPO(Tensor, TTLinearMap):
         self.shape = tuple(
             s1 * s2 for s1, s2 in zip(self.in_shape, self.out_shape)
         )
+    
+    @property
+    def size(self) -> int:
+        return sum(C.size for C in self.cores)
 
     @property
     def T(self) -> MPO:

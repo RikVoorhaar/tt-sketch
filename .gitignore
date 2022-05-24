@@ -20,6 +20,9 @@ mypy_cache
 *.egg-info
 *__pycache__
 build/*
+docs/_build
+docs/_static
+docs/_templates
 *.so
 *.html
 *.c
