@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from tt_sketch.tensor import TensorTrain, SparseTensor, DenseTensor, CPTensor
-from tt_sketch.utils import ArrayGenerator
 from typing import Tuple
+
 from tt_sketch.drm_base import DRM
+from tt_sketch.tensor import CPTensor, DenseTensor, SparseTensor, TensorTrain
+from tt_sketch.utils import ArrayGenerator
 
 
 class CansketchTT(DRM, ABC):

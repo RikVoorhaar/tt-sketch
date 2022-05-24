@@ -9,11 +9,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 
-from tt_sketch.utils import (
-    ArrayList,
-    TTRank,
-    process_tt_rank,
-)
+from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
 
 
 class Tensor(ABC):

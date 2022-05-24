@@ -1,19 +1,22 @@
 """Implements the TT-GMRES algorithm for solving linear systems in the 
 TT-format, as described in Dolgov, arXiv:1206.5512. """
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, Union, List
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import numpy.typing as npt
-from collections import defaultdict
 
-from tt_sketch.tensor import TensorTrain, TensorSum, Tensor
-from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
 from tt_sketch.sketch import stream_sketch
+from tt_sketch.tensor import Tensor, TensorSum, TensorTrain
+from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
 
 
 class TTLinearMap(ABC):
-    """Abstract class for linear maps in the TT-format. """
+    """Abstract class for linear maps in the TT-format."""
+
     in_shape: Tuple[int, ...]
     out_shape: Tuple[int, ...]
 
@@ -42,7 +45,7 @@ class MPO(Tensor, TTLinearMap):
         self.shape = tuple(
             s1 * s2 for s1, s2 in zip(self.in_shape, self.out_shape)
         )
-    
+
     @property
     def size(self) -> int:
         return sum(C.size for C in self.cores)
@@ -120,9 +123,7 @@ def tt_sum_round_orthog(
     max_rank_trimmed = process_tt_rank(max_rank, X.shape, trim=True)
     left_rank = max_rank_trimmed
     right_rank = tuple(r * 2 for r in max_rank_trimmed)
-    tt = stream_sketch(
-        X, left_rank=left_rank, right_rank=right_rank
-    ).to_tt()
+    tt = stream_sketch(X, left_rank=left_rank, right_rank=right_rank).to_tt()
     tt = tt.round(eps=epsilon, max_rank=max_rank_trimmed)
     tt = tt.orthogonalize()
     return tt

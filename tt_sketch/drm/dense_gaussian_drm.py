@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple, Union, Any
-from copy import deepcopy
+from typing import Optional, Tuple, Union
 
 import numpy as np
+from tt_sketch.drm_base import CanIncreaseRank, handle_transpose
 from tt_sketch.sketching_methods.abstract_methods import (
+    CansketchDense,
     CansketchSparse,
     CansketchTT,
-    CansketchDense,
 )
+from tt_sketch.tensor import DenseTensor, SparseTensor, TensorTrain
 from tt_sketch.utils import ArrayGenerator, ArrayList
-from tt_sketch.tensor import SparseTensor, TensorTrain, DenseTensor
-from tt_sketch.drm_base import handle_transpose, CanIncreaseRank
 
 
 class DenseGaussianDRM(
     CansketchTT, CansketchSparse, CansketchDense, CanIncreaseRank
 ):
-    """Dense Gaussian DRM. 
-    
+    """Dense Gaussian DRM.
+
     The DRM is stored as a list of matrices, one for each mode."""
+
     sketching_mats: ArrayList
 
     def __init__(

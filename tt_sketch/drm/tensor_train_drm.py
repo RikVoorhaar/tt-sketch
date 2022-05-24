@@ -1,18 +1,15 @@
-from __future__ import annotations
-
 from typing import Optional, Tuple, Union
 
 import numpy as np
-
+from tt_sketch.drm_base import CanSlice, handle_transpose
 from tt_sketch.sketching_methods.abstract_methods import (
-    CansketchSparse,
-    CansketchTT,
     CansketchCP,
     CansketchDense,
+    CansketchSparse,
+    CansketchTT,
 )
-from tt_sketch.drm_base import handle_transpose, CanSlice
-from tt_sketch.tensor import SparseTensor, TensorTrain, CPTensor, DenseTensor
-from tt_sketch.utils import ArrayList, ArrayGenerator
+from tt_sketch.tensor import CPTensor, DenseTensor, SparseTensor, TensorTrain
+from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 # TODO: Store DRM as a tensor.TensorTrain
@@ -92,7 +89,7 @@ class TensorTrainDRM(
         n_dims = len(self.shape)
         partial_contraction = self.cores[0].reshape(-1, self.cores[0].shape[-1])
         yield partial_contraction.T
-        for mu in range(1,n_dims - 1):
+        for mu in range(1, n_dims - 1):
             core = self.cores[mu]
             partial_contraction = np.einsum(
                 "ij,jkl->ikl", partial_contraction, core

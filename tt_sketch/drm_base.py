@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Tuple, Optional, Union, Any
-from tt_sketch.utils import TTRank, process_tt_rank, trim_ranks
-from numpy.random import uniform
-from numpy import mod
 from abc import ABC
 from copy import deepcopy
+from typing import Any, Callable, Dict, Optional, Tuple, Union
+
+from numpy import mod
+from numpy.random import uniform
+
+from tt_sketch.utils import TTRank, process_tt_rank
 
 
 class DRM(ABC):
@@ -121,10 +123,11 @@ class CanIncreaseRank(CanSlice):
 
 
 def handle_transpose(sketch: Callable) -> Callable:
-    """Decorator to handle transpose of sketch. 
-    
+    """Decorator to handle transpose of sketch.
+
     This way we only have to implement sketches on the left, and right-sketches
     are handled automatically."""
+
     def wrapper(self, tensor):
         if self.shape != tensor.shape:
             # Catch this shape mismatch early, because it can cause unexpected

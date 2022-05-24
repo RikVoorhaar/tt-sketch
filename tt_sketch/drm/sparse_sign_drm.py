@@ -1,15 +1,11 @@
-from __future__ import annotations
-
 from typing import Optional, Tuple, Union
 
 import numpy as np
-from tt_sketch.drm.fast_lazy_gaussian import (
-    inds_to_sparse_sign,
-)  # type: ignore
-from tt_sketch.drm_base import handle_transpose, CanSlice
+from tt_sketch.drm.fast_lazy_gaussian import inds_to_sparse_sign  # type: ignore
+from tt_sketch.drm_base import CanSlice, handle_transpose
 from tt_sketch.sketching_methods.abstract_methods import CansketchSparse
 from tt_sketch.tensor import SparseTensor
-from tt_sketch.utils import ArrayGenerator, ArrayList
+from tt_sketch.utils import ArrayGenerator
 
 
 class SparseSignDRM(CansketchSparse, CanSlice):
@@ -20,6 +16,7 @@ class SparseSignDRM(CansketchSparse, CanSlice):
     Like ``SparseGaussianDRM``, entries are computed lazily/on-demand using a
     hashing algorithm.
     """
+
     def __init__(
         self,
         rank: Union[Tuple[int, ...], int],
@@ -40,7 +37,7 @@ class SparseSignDRM(CansketchSparse, CanSlice):
         for mu in range(d - 1):
             shape = tensor.shape[: mu + 1]
             sketch_seed = np.mod(
-                mu + self.seed, 2 ** 63, dtype=np.uint64
+                mu + self.seed, 2**63, dtype=np.uint64
             )  # ensure safe casting to uint
             sketch_mat = inds_to_sparse_sign(
                 tensor.indices[: mu + 1],

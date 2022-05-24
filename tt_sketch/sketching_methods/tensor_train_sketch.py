@@ -2,9 +2,7 @@ from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
-
 from tt_sketch.tensor import TensorTrain
-
 
 
 def sketch_omega_tt(

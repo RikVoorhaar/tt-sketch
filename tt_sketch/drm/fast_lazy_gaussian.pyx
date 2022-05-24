@@ -2,7 +2,6 @@
 # cython: profile=True
 
 import cython
-# from cython.parallel import prange
 import numpy as np
 from libc.math cimport frexp, floor
 cimport numpy as np

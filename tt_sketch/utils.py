@@ -1,13 +1,12 @@
 # %%
-from typing import List, Sequence, Tuple, Union, Optional, Generator
 from functools import reduce
 from operator import mul
+from typing import Generator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from numpy.typing import ArrayLike
-
 import numpy.typing as npt
 import scipy.linalg
+from numpy.typing import ArrayLike
 
 ArrayList = List[npt.NDArray[np.float64]]
 ArrayGenerator = Generator[npt.NDArray[np.float64], None, None]

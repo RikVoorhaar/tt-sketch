@@ -2,14 +2,13 @@
 Implements methods for dispatching sketching methods for tensors and DRMs.
 """
 
-from typing import Callable
 from functools import partial
+from typing import Callable
 
 import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.drm import TensorTrainDRM
-
 from tt_sketch.drm_base import DRM
 from tt_sketch.sketch_container import SketchContainer
 from tt_sketch.sketching_methods.abstract_methods import (
@@ -18,10 +17,7 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
 )
-from tt_sketch.sketching_methods.cp_sketch import (
-    sketch_omega_cp,
-    sketch_psi_cp,
-)
+from tt_sketch.sketching_methods.cp_sketch import sketch_omega_cp, sketch_psi_cp
 from tt_sketch.sketching_methods.dense_sketch import (
     sketch_omega_dense,
     sketch_psi_dense,

@@ -2,14 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-)
+from typing import Dict, List, Optional, Sequence, Tuple, Type
 
 import numpy as np
 import numpy.typing as npt
@@ -22,9 +15,7 @@ from tt_sketch.drm import (
 )
 from tt_sketch.drm_base import DRM, CanIncreaseRank, CanSlice
 from tt_sketch.sketch_container import SketchContainer
-from tt_sketch.sketch_dispatch import (
-    general_sketch,
-)
+from tt_sketch.sketch_dispatch import general_sketch
 from tt_sketch.sketching_methods.abstract_methods import (
     CansketchCP,
     CansketchDense,
