@@ -19,7 +19,9 @@ from tt_sketch.utils import ArrayList, ArrayGenerator
 class TensorTrainDRM(
     CansketchSparse, CansketchTT, CansketchCP, CanSlice, CansketchDense
 ):
-    """Sketcher using Tensor Trains"""
+    """
+    Tensor train DRM. Sketches with partial contractions of a fixed TT.
+    """
 
     cores: ArrayList
 

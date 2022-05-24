@@ -121,6 +121,10 @@ class CanIncreaseRank(CanSlice):
 
 
 def handle_transpose(sketch: Callable) -> Callable:
+    """Decorator to handle transpose of sketch. 
+    
+    This way we only have to implement sketches on the left, and right-sketches
+    are handled automatically."""
     def wrapper(self, tensor):
         if self.shape != tensor.shape:
             # Catch this shape mismatch early, because it can cause unexpected

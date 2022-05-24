@@ -91,21 +91,21 @@ def dematricize(A, mode, shape):
 
 
 def right_mul_pinv(A, B, cond=None):
-    """Compute numerically stable product A@np.linalg.pinv(B)"""
+    """Compute numerically stable product ``A@np.linalg.pinv(B)``"""
     lstsq = scipy.linalg.lstsq(B.T, A.T, cond=cond)
 
     return lstsq[0].T
 
 
 def left_mul_pinv(A, B, cond=None):
-    """Compute numerically stable product np.linalg.pinv(A)@B"""
+    """Compute numerically stable product ``np.linalg.pinv(A)@B``"""
     lstsq = scipy.linalg.lstsq(A, B, cond=cond)
 
     return lstsq[0]
 
 
 def projector(X: npt.NDArray, Y: Optional[npt.NDArray] = None) -> npt.NDArray:
-    """Compute oblique projector :math:`P_{X,Y}`"""
+    """Compute oblique projector :math:`\mathcal P_{X,Y}`"""
     if Y is None:
         Y = X
 
@@ -150,6 +150,11 @@ def trim_ranks(
 def process_tt_rank(
     rank: TTRank, shape: Tuple[int, ...], trim: bool
 ) -> Tuple[int, ...]:
+    """
+    Process TT rank, and check validity. Makes sure rank is a tuple.
+
+    If ``trim=True``, ranks are trimmed to the smallest possible lossless value.
+    """
     # check if rank is iterable, if not use constant rank
     try:
         rank_tuple = tuple(rank)  # type: ignore

@@ -1,41 +1,42 @@
-"""Implements Tensor classes"""
+"""Implements various types of tensors"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
-from functools import cached_property
-from typing import List, Optional, Tuple, Union, Type
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
 
-# from tt_sketch.tt_svd import tt_svd
 from tt_sketch.utils import (
     ArrayList,
     TTRank,
     process_tt_rank,
-    right_mul_pinv,
-    left_mul_pinv,
 )
-from tt_sketch.sketch_container import SketchContainer
-from tt_sketch.drm_base import DRM
 
 
 class Tensor(ABC):
+    """Abstract base class for tensors."""
+
+    #: The shape of the tensor
     shape: Tuple[int, ...]
 
     @abstractproperty
     def T(self) -> Tensor:
-        pass
+        """Transpose of the tensor.
+
+        If a tensor has shape (n1,n2,...,nd), then transpose of the tensor
+        has shape (nd,...,n2,n1).
+        """
 
     @abstractproperty
     def size(self) -> int:
-        pass
+        """Number of floating point elements used to store the tensor."""
 
     @abstractmethod
     def to_numpy(self) -> npt.NDArray[np.float64]:
-        pass
+        """Converts the tensor to a (dense) numpy array of same shape."""
 
     def mse_error(self, other: Union[Tensor, npt.NDArray]) -> float:
         """Computes the MSE error"""
@@ -53,9 +54,11 @@ class Tensor(ABC):
 
     @property
     def ndim(self) -> int:
+        """Number of modes of the tensor."""
         return len(self.shape)
 
     def dense(self) -> DenseTensor:
+        """Converts to ``DenseTensor`` object"""
         dense_tensor = self.to_numpy()
         return DenseTensor(self.shape, dense_tensor)
 
@@ -79,6 +82,12 @@ class DenseTensor(Tensor):
     dtype = np.dtype("float64")
 
     def to_sparse(self) -> SparseTensor:
+        """
+        Converts to a sparse tensor.
+
+        This is mainly used for testing sketching algorithms, as there is
+        otherwise no reason to convert a dense tensor to a sparse tensor.
+        """
         X = self.data
         n_dims = len(X.shape)
         inds = np.indices(X.shape).reshape(n_dims, -1)
@@ -113,8 +122,13 @@ class DenseTensor(Tensor):
 
 @dataclass
 class SparseTensor(Tensor):
+    #: The shape of the tensor
     shape: Tuple[int, ...]
+
+    #: The indices of the non-zero entries
     indices: Union[npt.NDArray, Tuple[npt.NDArray, ...]]
+
+    #: The entries of the non-zero entries
     entries: npt.NDArray[np.float64]
 
     def __post_init__(self):
@@ -133,9 +147,13 @@ class SparseTensor(Tensor):
 
     @property
     def nnz(self) -> int:
+        """Number of non-zero entries."""
         return len(self.entries)
 
     def split(self, n_summands: int) -> TensorSum:
+        """
+        Splits the tensor a ``TensorSum`` containing ``n_summands`` tensors.
+        """
         block_size = self.nnz // n_summands
         summands: List[Tensor] = []
         for i in range(n_summands):
@@ -171,7 +189,9 @@ class SparseTensor(Tensor):
     def random(
         cls, shape: Tuple[int, ...], nnz: int, seed: Optional[int] = None
     ) -> SparseTensor:
-        """Generates a random CPTensor with `nnz` non-zero gaussian entries"""
+        """
+        Generates a random sparse tensor with `nnz` non-zero gaussian entries
+        """
         if seed is not None:
             np.random.seed(seed)
         total_size = np.prod(shape)
@@ -182,8 +202,14 @@ class SparseTensor(Tensor):
 
 
 class TensorTrain(Tensor):
+
+    #: The shape of the tensor
     shape: Tuple[int, ...]
+
+    #: Tuple encoding the tensor train rank
     rank: Tuple[int, ...]
+
+    #: A list containing the cores of the tensor train
     cores: ArrayList
 
     def __init__(self, cores: ArrayList) -> None:
@@ -212,7 +238,16 @@ class TensorTrain(Tensor):
         seed: Optional[int] = None,
         orthog: bool = False,
     ) -> TensorTrain:
-        """Generate random orthogonal tensor train cores"""
+        """
+        Generate random orthogonal tensor train cores
+
+        By default, a core of ``(r1, n, r2)`` has Gaussian entries with zero
+        mean and variance ``1 / r1 * n * r2``, so that expected Frobenius norm
+        is 1.
+
+        If ``ortho`` is set to ``True``, all cores except the last are
+        left-orthogonalized.
+        """
         if seed is not None:
             np.random.seed(seed)
         d = len(shape)
@@ -345,7 +380,9 @@ class TensorTrain(Tensor):
         return sum(core.size for core in self.cores)
 
     def add(self, other: TensorTrain) -> TensorTrain:
-        """Add two ``TensorTrain`` by taking direct sums of cores.
+        """
+        Add two ``TensorTrain`` by taking direct sums of cores.
+
         Note, this does not overload the addition operator ``+``; the addition
         operator instead returns a lazy ``TensorSum`` object.
         """
@@ -365,9 +402,11 @@ class TensorTrain(Tensor):
         return new_tt
 
     def dot(self, other: TensorTrain) -> float:
-        """Compute the dot product of two tensor trains with the same shape.
+        """
+        Compute the dot product of two tensor trains with the same shape.
 
-        Result is computed in a left-to-right sweep."""
+        Result is computed in a left-to-right sweep.
+        """
 
         result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
         for core1, core2 in zip(self.cores[1:], other.cores[1:]):
@@ -414,109 +453,6 @@ def diff_tt_sparse(tt: TensorTrain, sparse_tensor: SparseTensor) -> float:
     if norm_squared < 0:
         return 0
     return norm_squared**0.5
-
-
-class SketchedTensorTrain(Tensor):
-    sketch_: SketchContainer
-    left_rank: Tuple[int, ...]
-    right_rank: Tuple[int, ...]
-
-    @property
-    def Psi_cores(self) -> ArrayList:
-        return self.sketch_.Psi_cores
-
-    @property
-    def size(self) -> int:
-        total_Psi_size = sum(Psi.size for Psi in self.Psi_cores)
-        total_Omega_size = sum(Omega.size for Omega in self.Omega_mats)
-        return total_Psi_size + total_Omega_size
-
-    @property
-    def Omega_mats(self) -> ArrayList:
-        return self.sketch_.Omega_mats
-
-    def __init__(
-        self,
-        sketch: SketchContainer,
-    ):
-        self.sketch_ = sketch
-        self.shape = sketch.shape
-        self.left_rank = sketch.left_rank
-        self.right_rank = sketch.right_rank
-
-    @classmethod
-    def zero(cls, shape, left_rank, right_rank) -> SketchedTensorTrain:
-        """Initialize a new ``SketchedTensorTrain`` with zeros as ``Psi_cores``
-        ``Omega_mats``."""
-        sketch = SketchContainer.zero(shape, left_rank, right_rank)
-        return cls(sketch)
-
-    def C_cores(self, direction="auto") -> ArrayList:
-        return assemble_sketched_tt(self.sketch_, direction=direction)
-
-    @property
-    def T(self) -> SketchedTensorTrain:
-        new_sketch = self.sketch_.T
-        return self.__class__(new_sketch)
-
-    def to_tt(self) -> TensorTrain:
-        return TensorTrain(self.C_cores())
-
-    def to_numpy(self) -> npt.NDArray[np.float64]:
-        return self.to_tt().to_numpy()
-
-    def __repr__(self) -> str:
-        return (
-            f"<Sketched tensor train of shape {self.shape} with left-rank "
-            f"{self.left_rank} and right-rank {self.right_rank} "
-            f"at {hex(id(self))}>"
-        )
-
-
-def assemble_sketched_tt(
-    sketch: SketchContainer,
-    eps: float = 1e-15,
-    direction="auto",
-) -> ArrayList:
-    tt_cores = []
-    if direction == "auto":
-        left_rank_bigger = np.all(
-            np.array(sketch.left_rank) > np.array(sketch.right_rank)
-        )
-        direction = "left" if left_rank_bigger else "right"
-
-    if direction == "right":
-        for Psi, Omega in zip(sketch.Psi_cores[:-1], sketch.Omega_mats):
-            Psi_shape = Psi.shape
-            Psi_mat = Psi.reshape(Psi_shape[0] * Psi_shape[1], Psi_shape[2])
-            try:
-                Psi_Omega_pinv = right_mul_pinv(Psi_mat, Omega)
-            except ValueError:
-                print(Psi.shape, Omega.shape)
-                raise
-            core = Psi_Omega_pinv.reshape(
-                Psi_shape[0], Psi_shape[1], Omega.shape[0]
-            )
-            tt_cores.append(core)
-        tt_cores.append(sketch.Psi_cores[-1])
-    elif direction == "left":
-        tt_cores.append(sketch.Psi_cores[0])
-        for Psi, Omega in zip(sketch.Psi_cores[1:], sketch.Omega_mats):
-            Psi_shape = Psi.shape
-            Psi_mat = Psi.reshape(Psi_shape[0], Psi_shape[1] * Psi_shape[2])
-            try:
-                Omega_pinv_Psi = left_mul_pinv(Omega, Psi_mat)
-            except ValueError:
-                print(Psi.shape, Omega.shape)
-                raise
-            core = Omega_pinv_Psi.reshape(
-                Omega.shape[1], Psi_shape[1], Psi_shape[2]
-            )
-            tt_cores.append(core)
-    else:
-        raise ValueError(f"Unknown direction {direction}")
-
-    return tt_cores
 
 
 class TensorSum(Tensor):
@@ -623,6 +559,8 @@ class CPTensor(Tensor):
         self.cores[index] = data
 
     def gather(self, idx: Tuple[npt.NDArray[np.int64], ...]) -> npt.NDArray:
+        """Obtain the values of the tensor at the given indices."""
+
         res = 1
         for C, id in zip(self.cores, idx):
             res *= C[id]

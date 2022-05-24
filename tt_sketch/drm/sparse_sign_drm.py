@@ -13,6 +13,13 @@ from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 class SparseSignDRM(CansketchSparse, CanSlice):
+    """
+    Sparse DRM where each row is a vector with fixed number of +/-1 entries.
+
+    The number of nonzero entries are determined by ``num_non_zero_per_row``.
+    Like ``SparseGaussianDRM``, entries are computed lazily/on-demand using a
+    hashing algorithm.
+    """
     def __init__(
         self,
         rank: Union[Tuple[int, ...], int],

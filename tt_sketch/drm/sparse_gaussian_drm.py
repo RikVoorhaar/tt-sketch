@@ -13,6 +13,12 @@ from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 class SparseGaussianDRM(CansketchSparse, CanIncreaseRank):
+    """'Sparse' Gaussian DRM
+    
+    Mathematically equivalent ``DenseGaussianDRM``, but entries of the DRM
+    are computed lazily/on-demand using a hashing algorithm. This makes
+    it computationally feasible for very sparse tensors.
+    """
     def __init__(
         self,
         rank: Union[Tuple[int, ...], int],

@@ -163,6 +163,9 @@ def inds_to_sparse_sign(
     non_zero_per_row,
     seed
 ):
+    """
+    Converts a list of indices into the non-zero entries of a sparse sign matrix
+    """
     indices = indices.astype(np.uint64)
     N = indices.shape[1]
     shape = np.array(shape,dtype=np.uint64)
@@ -185,6 +188,9 @@ def inds_to_normal(
     rank_max,
     seed
 ):  
+    """
+    Converts a list of indices into the associated entries of gaussian matrix
+    """
     indices = indices.astype(np.uint64)
     N = indices.shape[1]
     shape = np.array(shape,dtype=np.uint64)

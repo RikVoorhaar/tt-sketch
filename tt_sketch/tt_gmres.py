@@ -7,12 +7,13 @@ import numpy as np
 import numpy.typing as npt
 from collections import defaultdict
 
-from tt_sketch.tensor import TensorTrain, TensorSum, Tensor, SketchedTensorTrain
+from tt_sketch.tensor import TensorTrain, TensorSum, Tensor
 from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
 from tt_sketch.sketch import stream_sketch
 
 
 class TTLinearMap(ABC):
+    """Abstract class for linear maps in the TT-format. """
     in_shape: Tuple[int, ...]
     out_shape: Tuple[int, ...]
 
@@ -115,7 +116,7 @@ class MPO(Tensor, TTLinearMap):
 def tt_sum_round_orthog(
     X: TensorSum, epsilon: float, max_rank: Tuple[int, ...]
 ) -> TensorTrain:
-    # TODO: Implement sketched and exact version of this
+    """Rounds and orthogonalizes a sum of tensor trains."""
     max_rank_trimmed = process_tt_rank(max_rank, X.shape, trim=True)
     left_rank = max_rank_trimmed
     right_rank = tuple(r * 2 for r in max_rank_trimmed)
@@ -134,6 +135,7 @@ def tt_weighted_sum_sketched(
     tolerance: float,
     max_rank: Tuple[int, ...],
 ):
+    """Sketched weighted sum of tensor trains."""
     x_sum = TensorSum([x0])
     for coeff, tt in zip(coeffs, tt_list):
         x_sum += coeff * tt
@@ -148,6 +150,7 @@ def tt_weighted_sum_exact(
     tolerance: float,
     max_rank: Tuple[int, ...],
 ):
+    """Weighted sum of tensor trains rounded to ``max_rank``"""
     x = x0
     for coeff, tt in zip(coeffs, tt_list):
         x = x.add(coeff * tt)
@@ -167,6 +170,7 @@ def tt_gmres(
     tolerance: float = 1e-6,
     maxiter: int = 100,
 ) -> Tuple[TensorTrain, Dict[str, List]]:
+    """GMRES solver for TT linear map."""
     if A.out_shape != b.shape:
         raise ValueError("Output shape of MPO doesn't match RHS")
     if x0 is not None and x0.shape != A.in_shape:

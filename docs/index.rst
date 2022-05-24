@@ -6,22 +6,23 @@
 Welcome to tt-sketch's documentation!
 =====================================
 
+
 .. toctree::
    :maxdepth: 2
    :caption: Basic usage
 
    tutorial
 
-API Reference
-=============
+
 .. toctree::
    :maxdepth: 2
    :caption: User documentation
 
-   tt-sketch
    tensor
-   sketching_methods
    drm
+   sketching_methods
+   sketch
+   tt_gmres
    tt_svd
    utils
 

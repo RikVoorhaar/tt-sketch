@@ -17,6 +17,9 @@ from tt_sketch.drm_base import handle_transpose, CanIncreaseRank
 class DenseGaussianDRM(
     CansketchTT, CansketchSparse, CansketchDense, CanIncreaseRank
 ):
+    """Dense Gaussian DRM. 
+    
+    The DRM is stored as a list of matrices, one for each mode."""
     sketching_mats: ArrayList
 
     def __init__(

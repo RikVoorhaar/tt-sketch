@@ -1,10 +1,8 @@
-name: tensors
+name: tt-sketch
 channels:
   - conda-forge
 dependencies:
   - cython
-  # - dask
-  # - graphviz
   - ipython
   - ipywidgets
   - jupyter
@@ -12,30 +10,18 @@ dependencies:
   - matplotlib
   - mypy
   - numpy>=1.21
-  - opt-einsum
   - pandas
   - pip
   - pylint
   - pytest
   - pytables
-  # - python=3.8
-  - scikit-learn
   - scipy
-  # - seaborn
-  # - sparse
   - sphinx
-  # - statsmodels
-  - xgboost
   - tqdm
   - pip:
-    - git+https://github.com/jcmgray/autoray.git
     - black
-    - hyperopt
-    # - jupyterlab_code_formatter==1.4.4
-    # - memory-profiler
     - nbsphinx
     - nbsphinx-link
     - pycodestyle
     - pytest-cov
-    - pytest-timeout
     - sphinx_rtd_theme

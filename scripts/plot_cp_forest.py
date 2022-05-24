@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from ttml.forest_compression import compress_forest_thresholds, forest_to_CP
 import numpy as np
-from tt_sketch.tensor import CPTensor, SketchedTensorTrain
+from tt_sketch.tensor import CPTensor
 from tt_sketch.sketch import stream_sketch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
