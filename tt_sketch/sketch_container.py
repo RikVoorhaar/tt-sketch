@@ -72,3 +72,8 @@ class SketchContainer:
         Psi_cores_new = [Psi.transpose(2, 1, 0) for Psi in self.Psi_cores[::-1]]
         Omega_mats_new = [Omega.T for Omega in self.Omega_mats[::-1]]
         return self.__class__(Psi_cores_new, Omega_mats_new)
+
+    def __mul__(self, other: float) -> SketchContainer:
+        new_Psi_cores = self.Psi_cores
+        new_Psi_cores[0] *= other
+        return self.__class__(new_Psi_cores, self.Omega_mats)

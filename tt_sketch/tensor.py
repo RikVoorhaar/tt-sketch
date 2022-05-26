@@ -59,6 +59,7 @@ class Tensor(ABC):
         return DenseTensor(self.shape, dense_tensor)
 
     def __add__(self, other) -> TensorSum:
+        """Addition of two tensors produces ``TensorSum`` object"""
         if isinstance(other, TensorSum):
             if not isinstance(self, TensorSum):
                 return TensorSum([self] + other.tensors)
@@ -68,6 +69,16 @@ class Tensor(ABC):
             return TensorSum(self.tensors + [other])
         else:
             return TensorSum([self, other])
+
+    @abstractmethod
+    def __mul__(self, other: float) -> Tensor:
+        """Multiplication by a scalar"""
+
+    def __rmul__(self, other: float) -> Tensor:
+        return self.__mul__(other)
+
+    def __truediv__(self, other: float):
+        return self.__mul__(1 / other)
 
 
 @dataclass
@@ -114,6 +125,9 @@ class DenseTensor(Tensor):
 
     def __repr__(self) -> str:
         return f"<Dense tensor of shape {self.shape} at {hex(id(self))}>"
+
+    def __mul__(self, other: float) -> DenseTensor:
+        return self.__class__(self.shape, self.data * other)
 
 
 @dataclass
@@ -195,6 +209,9 @@ class SparseTensor(Tensor):
         indices = np.unravel_index(indices_flat, shape)
         entries = np.random.normal(size=nnz)
         return cls(shape, indices, entries)
+
+    def __mul__(self, other: float) -> SparseTensor:
+        return self.__class__(self.shape, self.indices, self.entries * other)
 
 
 class TensorTrain(Tensor):
@@ -359,7 +376,7 @@ class TensorTrain(Tensor):
 
         return self.__class__(new_cores[::-1])
 
-    def __mul__(self, other: Union[float, int]) -> TensorTrain:
+    def __mul__(self, other: float) -> TensorTrain:
         new_cores = deepcopy(self.cores)
         # Absorb number into last core, since if we do orthogonalize, we left
         # orthogonalize.
@@ -367,9 +384,6 @@ class TensorTrain(Tensor):
         return self.__class__(new_cores)
 
     __rmul__ = __mul__
-
-    def __truediv__(self, other: Union[float, int]):
-        return self.__mul__(1 / other)
 
     @property
     def size(self) -> int:
@@ -501,6 +515,9 @@ class TensorSum(Tensor):
     def num_summands(self) -> int:
         return len(self.tensors)
 
+    def __mul__(self, other: float) -> TensorSum:
+        return self.__class__([X * other for X in self.tensors])
+
 
 class CPTensor(Tensor):
     """Implements CP tensors.
@@ -567,3 +584,8 @@ class CPTensor(Tensor):
             f"<CP tensor of shape {self.shape} and rank {self.rank} "
             f"at {hex(id(self))}>"
         )
+
+    def __mul__(self, other: float) -> CPTensor:
+        new_cores = self.cores
+        new_cores[0] = new_cores[0] * other
+        return self.__class__(new_cores)

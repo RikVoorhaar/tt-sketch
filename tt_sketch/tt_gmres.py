@@ -115,6 +115,11 @@ class MPO(Tensor, TTLinearMap):
             cores.append(C)
         return cls(cores)
 
+    def __mul__(self, other: float) -> Tensor:
+        new_cores = self.cores
+        new_cores[0] = new_cores[0] * other
+        return self.__class__(new_cores)
+
 
 def tt_sum_round_orthog(
     X: TensorSum, epsilon: float, max_rank: Tuple[int, ...]

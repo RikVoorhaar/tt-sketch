@@ -307,6 +307,11 @@ class SketchedTensorTrain(Tensor):
 
         return self.__class__(sketch, left_drm, right_drm)
 
+    def __mul__(self, other: float) -> SketchedTensorTrain:
+        return self.__class__(
+            self.sketch_ * other, self.left_drm, self.right_drm
+        )
+
 
 def _blocked_stream_sketch_components(
     tensor: Tensor,
