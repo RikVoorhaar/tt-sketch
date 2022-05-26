@@ -1,4 +1,4 @@
-"""Implements sketching methods for given types of tensors.
+r"""Implements sketching methods for given types of tensors.
 
 Each sketching method consists of a method to sketch ``omega``
 :math:`\Omega_\mu` and to sketch ``psi`` :math:`\Psi_\mu` (following the

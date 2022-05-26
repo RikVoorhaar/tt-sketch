@@ -104,7 +104,7 @@ def left_mul_pinv(A, B, cond=None):
 
 
 def projector(X: npt.NDArray, Y: Optional[npt.NDArray] = None) -> npt.NDArray:
-    """Compute oblique projector :math:`\mathcal P_{X,Y}`"""
+    r"""Compute oblique projector :math:`\mathcal P_{X,Y}`"""
     if Y is None:
         Y = X
 
