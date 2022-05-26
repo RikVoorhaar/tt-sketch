@@ -1,10 +1,10 @@
-.. tt-sketch documentation master file, created by
-   sphinx-quickstart on Mon May 23 11:19:29 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+TT-sketch
+=========
 
-Welcome to tt-sketch's documentation!
-=====================================
+This is the documentation page of TT-sketch.
+
+You can find the source code and additional information at https://github.com/RikVoorhaar/tt-sketch.
+
 
 .. toctree::
    :maxdepth: 2
@@ -12,16 +12,16 @@ Welcome to tt-sketch's documentation!
 
    tutorial
 
-API Reference
-=============
+
 .. toctree::
    :maxdepth: 2
    :caption: User documentation
 
-   tt-sketch
    tensor
-   sketching_methods
    drm
+   sketching_methods
+   sketch
+   tt_gmres
    tt_svd
    utils
 

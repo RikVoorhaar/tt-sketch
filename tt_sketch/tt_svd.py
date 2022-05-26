@@ -1,10 +1,10 @@
 """Implements TT-SVD algorithm"""
-from typing import Sequence, Union, Optional, List
-import numpy.typing as npt
+from typing import Optional
+
 import numpy as np
-from py import process
-from tt_sketch.utils import ArrayList, TTRank, matricize, process_tt_rank
+
 from tt_sketch.tensor import Tensor, TensorTrain
+from tt_sketch.utils import TTRank, matricize, process_tt_rank
 
 
 def tt_svd(tensor: Tensor, rank: Optional[TTRank] = None) -> TensorTrain:

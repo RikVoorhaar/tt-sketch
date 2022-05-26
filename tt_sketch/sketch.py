@@ -1,43 +1,35 @@
 """Interface for the streaming and orthogonal sketching algorithms"""
 from __future__ import annotations
 
-from functools import cached_property
-from re import L
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-    Any,
-)
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Sequence, Tuple, Type
 
 import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.drm import (
+    ALL_DRM,
     DenseGaussianDRM,
     SparseGaussianDRM,
     TensorTrainDRM,
-    ALL_DRM,
 )
-from tt_sketch.drm_base import DRM, CanSlice, CanIncreaseRank
+from tt_sketch.drm_base import DRM, CanIncreaseRank, CanSlice
+from tt_sketch.sketch_container import SketchContainer
+from tt_sketch.sketch_dispatch import general_sketch
 from tt_sketch.sketching_methods.abstract_methods import (
+    CansketchCP,
     CansketchDense,
     CansketchSparse,
     CansketchTT,
-    CansketchCP,
 )
-from tt_sketch.sketch_dispatch import (
-    general_sketch,
-    ABSTRACT_TENSOR_SKETCH_DISPATCH,
+from tt_sketch.tensor import Tensor, TensorTrain
+from tt_sketch.utils import (
+    ArrayList,
+    TTRank,
+    left_mul_pinv,
+    process_tt_rank,
+    right_mul_pinv,
 )
-from tt_sketch.tensor import Tensor, TensorTrain, TensorSum, SketchedTensorTrain
-from tt_sketch.utils import ArrayList, TTRank, process_tt_rank, right_mul_pinv
-from tt_sketch.sketch_container import SketchContainer
 
 DEFAULT_DRM = {
     CansketchDense: DenseGaussianDRM,
@@ -47,83 +39,6 @@ DEFAULT_DRM = {
 }
 
 BlockedSketch = Dict[Tuple[int, int], SketchContainer]
-
-
-def stream_sketch(
-    tensor: Tensor,
-    left_rank: TTRank,
-    right_rank: TTRank,
-    seed: Optional[int] = None,
-    left_drm_type: Optional[Type[DRM]] = None,
-    right_drm_type: Optional[Type[DRM]] = None,
-    left_drm: Optional[DRM] = None,
-    right_drm: Optional[DRM] = None,
-    return_drm: bool = False,
-) -> SketchedTensorTrain:
-    """
-    Perform a streaming sketch of a tensor
-    """
-    d = len(tensor.shape)
-    # default_drm_type = get_default_drm_type(tensor)
-
-    left_rank_bigger = bool(np.all(np.array(left_rank) > np.array(right_rank)))
-    right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
-    if not left_rank_bigger and not right_rank_bigger:
-        raise ValueError(
-            f"Left ranks or right ranks must be conistently larger or smaller "
-            f"than the other. Left rank: {left_rank}, "
-            f"right rank: {right_rank}"
-        )
-
-    if seed is None:
-        seed = np.mod(hash(np.random.uniform()), 2**32)
-
-    if left_drm is None:
-        if left_drm_type is None:
-            if right_drm_type is not None:
-                left_drm_type = right_drm_type
-            else:
-                left_drm_type = TensorTrainDRM
-        left_rank = process_tt_rank(
-            left_rank, tensor.shape, trim=right_rank_bigger
-        )
-        left_drm = left_drm_type(
-            left_rank, transpose=False, shape=tensor.shape, seed=seed
-        )
-    else:
-        if left_drm.rank != left_rank:
-            raise ValueError(
-                f"Left rank {left_rank} does not match the rank of the DRM "
-                f"{left_drm.rank}."
-            )
-
-    if right_drm is None:
-        if right_drm_type is None:
-            if left_drm_type is not None:
-                right_drm_type = left_drm_type
-            else:
-                right_drm_type = TensorTrainDRM
-        right_rank = process_tt_rank(
-            right_rank, tensor.shape, trim=left_rank_bigger
-        )
-        right_seed = np.mod(seed + hash(str(d)), 2**32)
-        right_drm = right_drm_type(
-            right_rank, transpose=True, shape=tensor.shape, seed=right_seed
-        )
-    else:
-        if tuple(right_drm.rank[::-1]) != right_rank:
-            raise ValueError(
-                f"Right rank {right_rank} does not match the rank of the DRM "
-                f"{right_drm.rank}."
-            )
-
-    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=False)
-
-    sketched = SketchedTensorTrain(sketch)
-    if return_drm:  # this really is mostly for testing purposes
-        return sketched, left_drm, right_drm  # type: ignore
-    else:
-        return sketched
 
 
 def orthogonal_sketch(
@@ -138,9 +53,8 @@ def orthogonal_sketch(
     return_drm: bool = False,
 ) -> TensorTrain:
     """
-    Perform a streaming sketch of a tensor
+    Perform an orthogonal sketch of a tensor
     """
-    # default_drm_type = get_default_drm_type(tensor)
     d = len(tensor.shape)
 
     right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
@@ -198,29 +112,205 @@ def orthogonal_sketch(
         return sketched
 
 
-# def get_default_drm_type(tensor: Tensor) -> Type[DRM]:
-#     """
-#     Get the default DRM type for a given tensor.
-#     """
-#     if isinstance(tensor, TensorSum):
-#         # matching_drms = set()
-#         # for X in tensor.tensors:
-#         #     drm = get_default_drm_type(X)
-#         #     matching_drms.add(drm)
-#         # if len(matching_drms) > 0:
-#         #     return list(matching_drms)[0]  # type: ignore
-#         return TensorTrainDRM
-#     else:
-#         for tensor_type, sketch_type in ABSTRACT_TENSOR_SKETCH_DISPATCH.items():
-#             if isinstance(tensor, tensor_type):
-#                 default_drm_type = DEFAULT_DRM[sketch_type]
-#                 return default_drm_type  # type: ignore
+def stream_sketch(
+    tensor: Tensor,
+    left_rank: TTRank,
+    right_rank: TTRank,
+    seed: Optional[int] = None,
+    left_drm_type: Optional[Type[DRM]] = None,
+    right_drm_type: Optional[Type[DRM]] = None,
+    left_drm: Optional[DRM] = None,
+    right_drm: Optional[DRM] = None,
+    return_drm: bool = False,
+) -> SketchedTensorTrain:
+    """
+    Perform a streaming sketch of a tensor
+    """
+    d = len(tensor.shape)
 
-#     # No matching method found
-#     raise ValueError(
-#         f"""No sketching methods available for tensor of type
-#         {type(tensor)}"""
-#     )
+    left_rank_bigger = bool(np.all(np.array(left_rank) > np.array(right_rank)))
+    right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
+    if not left_rank_bigger and not right_rank_bigger:
+        raise ValueError(
+            f"Left ranks or right ranks must be conistently larger or smaller "
+            f"than the other. Left rank: {left_rank}, "
+            f"right rank: {right_rank}"
+        )
+
+    if seed is None:
+        seed = np.mod(hash(np.random.uniform()), 2**32)
+
+    if left_drm is None:
+        if left_drm_type is None:
+            if right_drm_type is not None:
+                left_drm_type = right_drm_type
+            else:
+                left_drm_type = TensorTrainDRM
+        left_rank = process_tt_rank(
+            left_rank, tensor.shape, trim=right_rank_bigger
+        )
+        left_drm = left_drm_type(
+            left_rank, transpose=False, shape=tensor.shape, seed=seed
+        )
+    else:
+        if left_drm.rank != left_rank:
+            raise ValueError(
+                f"Left rank {left_rank} does not match the rank of the DRM "
+                f"{left_drm.rank}."
+            )
+
+    if right_drm is None:
+        if right_drm_type is None:
+            if left_drm_type is not None:
+                right_drm_type = left_drm_type
+            else:
+                right_drm_type = TensorTrainDRM
+        right_rank = process_tt_rank(
+            right_rank, tensor.shape, trim=left_rank_bigger
+        )
+        right_seed = np.mod(seed + hash(str(d)), 2**32)
+        right_drm = right_drm_type(
+            right_rank, transpose=True, shape=tensor.shape, seed=right_seed
+        )
+    else:
+        if tuple(right_drm.rank[::-1]) != right_rank:
+            raise ValueError(
+                f"Right rank {right_rank} does not match the rank of the DRM "
+                f"{right_drm.rank}."
+            )
+
+    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=False)
+
+    sketched = SketchedTensorTrain(sketch, left_drm, right_drm)
+    if return_drm:  # this really is mostly for testing purposes
+        return sketched, left_drm, right_drm  # type: ignore
+    else:
+        return sketched
+
+
+@dataclass
+class SketchedTensorTrain(Tensor):
+    """
+    Container for storing the output of the streaming sketch
+
+    Stores the result of the sketch as well as the DRMs used for the sketching.
+    Can be cheaply converted to a tensor train, or the sketch can be efficiently
+    updated using the ``__add__`` method.
+    """
+
+    sketch_: SketchContainer
+    left_drm: DRM
+    right_drm: DRM
+
+    @property
+    def left_rank(self) -> Tuple[int, ...]:
+        return self.left_drm.rank
+
+    @property
+    def right_rank(self) -> Tuple[int, ...]:
+        return self.right_drm.rank[::-1]
+
+    @property
+    def Psi_cores(self) -> ArrayList:
+        return self.sketch_.Psi_cores
+
+    @property
+    def size(self) -> int:
+        total_Psi_size = sum(Psi.size for Psi in self.Psi_cores)
+        total_Omega_size = sum(Omega.size for Omega in self.Omega_mats)
+        return total_Psi_size + total_Omega_size
+
+    @property
+    def Omega_mats(self) -> ArrayList:
+        return self.sketch_.Omega_mats
+
+    def __post_init__(self):
+        self.shape = self.sketch_.shape
+
+    def C_cores(self, direction="auto") -> ArrayList:
+        return assemble_sketched_tt(self.sketch_, direction=direction)
+
+    @property
+    def T(self) -> SketchedTensorTrain:
+        new_sketch = self.sketch_.T
+        return self.__class__(new_sketch)
+
+    def to_tt(self) -> TensorTrain:
+        return TensorTrain(self.C_cores())
+
+    def to_numpy(self) -> npt.NDArray[np.float64]:
+        return self.to_tt().to_numpy()
+
+    def __repr__(self) -> str:
+        return (
+            f"<Sketched tensor train of shape {self.shape} with left-rank "
+            f"{self.left_rank} and right-rank {self.right_rank} "
+            f"at {hex(id(self))}>"
+        )
+
+    def __add__(self, other: Tensor) -> SketchedTensorTrain:
+        other_sketch = stream_sketch(
+            other,
+            self.left_rank,
+            self.right_rank,
+            left_drm=self.left_drm,
+            right_drm=self.right_drm,
+        )
+        new_sketch = self.sketch_ + other_sketch.sketch_
+        return self.__class__(new_sketch, self.left_drm, self.right_drm)
+
+    def increase_rank(
+        self,
+        tensor: Tensor,
+        new_left_rank: Tuple[int, ...],
+        new_right_rank: Tuple[int, ...],
+    ) -> SketchedTensorTrain:
+        """Increase the rank of the approximation by performing a new sketch.
+
+        Requires DRM with support for the ``CanIncreaseRank`` protocol, which
+        currently is only supported by ``SparseGaussianDRM``.
+        """
+        for drm in (self.left_drm, self.right_drm):
+            if not isinstance(drm, CanSlice):
+                drm_name = drm.__class__.__name__
+                raise ValueError(
+                    f"Increasing rank is not supported for DRM {drm_name}"
+                )
+
+        n_dims = len(tensor.shape)
+        left_rank_slices = [
+            (0,) * (n_dims - 1),
+            self.left_drm.rank,
+            new_left_rank,
+        ]
+        right_rank_slices = [
+            (0,) * (n_dims - 1),
+            self.right_drm.rank[::-1],
+            new_right_rank,
+        ]
+        left_drm = self.left_drm.increase_rank(new_left_rank)  # type: ignore
+        right_drm = self.right_drm.increase_rank(new_right_rank)  # type: ignore
+
+        sketch_dict = _blocked_stream_sketch_components(
+            tensor,
+            left_drm,
+            right_drm,
+            left_rank_slices,
+            right_rank_slices,
+            excluded_entries=[(0, 0)],
+        )
+
+        sketch_dict[(0, 0)] = self.sketch_
+        sketch = _assemble_blocked_stream_sketches(
+            left_rank_slices, right_rank_slices, tensor.shape, sketch_dict
+        )
+
+        return self.__class__(sketch, left_drm, right_drm)
+
+    def __mul__(self, other: float) -> SketchedTensorTrain:
+        return self.__class__(
+            self.sketch_ * other, self.left_drm, self.right_drm
+        )
 
 
 def _blocked_stream_sketch_components(
@@ -257,6 +347,53 @@ def _blocked_stream_sketch_components(
             sketch_dict[(i, j)] = sketch_block
 
     return sketch_dict
+
+
+def assemble_sketched_tt(
+    sketch: SketchContainer,
+    eps: float = 1e-15,
+    direction="auto",
+) -> ArrayList:
+    """Reconstructs a TT from a sketch, using Psi and Omega matrices."""
+    tt_cores = []
+    if direction == "auto":
+        left_rank_bigger = np.all(
+            np.array(sketch.left_rank) > np.array(sketch.right_rank)
+        )
+        direction = "left" if left_rank_bigger else "right"
+
+    if direction == "right":
+        for Psi, Omega in zip(sketch.Psi_cores[:-1], sketch.Omega_mats):
+            Psi_shape = Psi.shape
+            Psi_mat = Psi.reshape(Psi_shape[0] * Psi_shape[1], Psi_shape[2])
+            try:
+                Psi_Omega_pinv = right_mul_pinv(Psi_mat, Omega)
+            except ValueError:
+                print(Psi.shape, Omega.shape)
+                raise
+            core = Psi_Omega_pinv.reshape(
+                Psi_shape[0], Psi_shape[1], Omega.shape[0]
+            )
+            tt_cores.append(core)
+        tt_cores.append(sketch.Psi_cores[-1])
+    elif direction == "left":
+        tt_cores.append(sketch.Psi_cores[0])
+        for Psi, Omega in zip(sketch.Psi_cores[1:], sketch.Omega_mats):
+            Psi_shape = Psi.shape
+            Psi_mat = Psi.reshape(Psi_shape[0], Psi_shape[1] * Psi_shape[2])
+            try:
+                Omega_pinv_Psi = left_mul_pinv(Omega, Psi_mat)
+            except ValueError:
+                print(Psi.shape, Omega.shape)
+                raise
+            core = Omega_pinv_Psi.reshape(
+                Omega.shape[1], Psi_shape[1], Psi_shape[2]
+            )
+            tt_cores.append(core)
+    else:
+        raise ValueError(f"Unknown direction {direction}")
+
+    return tt_cores
 
 
 def _assemble_blocked_stream_sketches(
@@ -315,18 +452,8 @@ def blocked_stream_sketch(
 ) -> SketchContainer:
     """Do a blocked sketch.
 
-    Parameters
-    ----------
-    tensor
-    left_drm
-    right_drm
-    left_rank_slices
-        Instructions how to slice up the left-sketch. If the t--rank of the
-        left-sketch is for example (6,8,10), then we can set ``left_rank_slices
-        = [(0,0,0), (3,4,5), (6,8,10)]`` to split the left-sketch into two
-        equally sized blocks. The number of slices is unlimited.
-    right_rank_slices
-        Same as ``left_rank_slices`` but pertaining to the right-sketch.
+    It's use is mainly theoretical, since this this would only be faster in a
+    distributed setting (which isn't properly supported).
     """
     for drm in (left_drm, right_drm):
         if not isinstance(drm, CanSlice):

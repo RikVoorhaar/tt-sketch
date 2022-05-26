@@ -1,12 +1,14 @@
-from typing import Callable, Dict, Type
+"""
+Implements methods for dispatching sketching methods for tensors and DRMs.
+"""
+
 from functools import partial
+from typing import Callable
 
 import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.drm import TensorTrainDRM
-
-# from tt_sketch.drm.orthog_tt_drm import OrthogTTDRM, orth_step
 from tt_sketch.drm_base import DRM
 from tt_sketch.sketch_container import SketchContainer
 from tt_sketch.sketching_methods.abstract_methods import (
@@ -15,10 +17,7 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchSparse,
     CansketchTT,
 )
-from tt_sketch.sketching_methods.cp_sketch import (
-    sketch_omega_cp,
-    sketch_psi_cp,
-)
+from tt_sketch.sketching_methods.cp_sketch import sketch_omega_cp, sketch_psi_cp
 from tt_sketch.sketching_methods.dense_sketch import (
     sketch_omega_dense,
     sketch_psi_dense,
@@ -149,6 +148,9 @@ def get_sketch_method(tensor: Tensor, drm: DRM) -> Callable:
 def orth_step(
     Psi: npt.NDArray[np.float64], Omega: npt.NDArray[np.float64]
 ) -> npt.NDArray[np.float64]:
+    """
+    Perform the orthogonalization step in the orthogonal sketching algorithm.
+    """
     Psi_shape = Psi.shape
     Psi_mat = Psi.reshape((Psi_shape[0] * Psi_shape[1], Psi_shape[2]))
     Psi_mat = right_mul_pinv(Psi_mat, Omega)
@@ -158,6 +160,8 @@ def orth_step(
 
 
 class OrthogTTDRM:
+    """Represents the orthogonalized TT used as left-sketch for psi"""
+
     def __init__(self, rank, tensor):
         self.rank = rank
         self.drm = TensorTrainDRM(rank, tensor.shape, transpose=False, cores=[])
@@ -180,6 +184,10 @@ def general_sketch(
     right_drm: DRM,
     orthogonalize: bool = False,
 ) -> SketchContainer:
+    """General algorithm for sketching a tensor.
+
+    Does the heavy lifting for both the streaming and orthogonal sketching
+    algorithms."""
     n_dims = len(tensor.shape)
 
     left_contractions = list(get_sketch_method(tensor, left_drm)(tensor))
@@ -233,32 +241,3 @@ def general_sketch(
             Psi = orth_step(Psi, Omega_mats[mu])
         Psi_cores.append(Psi)
     return SketchContainer(Psi_cores, Omega_mats)
-
-
-# def sum_sketch(
-#     tensor: TensorSum,
-#     left_drm: DRM,
-#     right_drm: DRM,
-#     orthogonalize: bool = False,
-# ) -> SketchContainer:
-#     """Sketch a tensor sum"""
-#     left_rank = left_drm.rank
-#     right_rank = right_drm.rank[::-1]
-#     shape = left_drm.shape
-#     sketch = SketchContainer.zero(shape, left_rank, right_rank)
-
-#     for summand in tensor.tensors:
-#         sketch_method = SKETCHING_METHODS_TENSOR[type(summand)]
-#         sketch_summand = sketch_method(summand, left_drm, right_drm)  # type: ignore
-#         sketch += sketch_summand
-
-#     return sketch
-
-
-# SKETCHING_METHODS_TENSOR = {
-#     SparseTensor: sparse_sketch,
-#     TensorTrain: tensor_train_sketch,
-#     DenseTensor: dense_sketch,
-#     CPTensor: cp_sketch,
-#     TensorSum: sum_sketch,
-# }
