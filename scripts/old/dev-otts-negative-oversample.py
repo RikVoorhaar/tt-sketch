@@ -27,7 +27,7 @@ from tt_sketch.tensor import Tensor, TensorTrain
 from experiment_base import (
     Experiment,
     experiment_recursive_sketch,
-    experiment_tensor_sketch,
+    experiment_stream_sketch,
     experiment_tt_svd,
 )
 

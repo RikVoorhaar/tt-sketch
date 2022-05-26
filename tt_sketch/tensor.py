@@ -57,7 +57,7 @@ class Tensor(ABC):
 
     def dense(self) -> DenseTensor:
         dense_tensor = self.to_numpy()
-        return DenseTensor(self.shape, dense_tensor)
+        return DenseTensor(dense_tensor)
 
     def __add__(self, other) -> TensorSum:
         if isinstance(other, TensorSum):
@@ -71,12 +71,13 @@ class Tensor(ABC):
             return TensorSum([self, other])
 
 
-@dataclass
 class DenseTensor(Tensor):
     shape: Tuple[int, ...]
     data: npt.NDArray[np.float64]
 
-    dtype = np.dtype("float64")
+    def __init__(self, data: npt.NDArray) -> None:
+        self.shape = data.shape
+        self.data = data
 
     def to_sparse(self) -> SparseTensor:
         X = self.data
@@ -87,10 +88,9 @@ class DenseTensor(Tensor):
 
     @property
     def T(self) -> DenseTensor:
-        new_shape = self.shape[::-1]
         permutation = tuple(range(len(self.shape))[::-1])
         new_data = np.transpose(self.data, permutation)
-        return self.__class__(new_shape, new_data)
+        return self.__class__(new_data)
 
     @property
     def size(self) -> int:
@@ -98,8 +98,7 @@ class DenseTensor(Tensor):
 
     def __getitem__(self, key):
         new_data = self.data.__getitem__(key)
-        new_shape = new_data.shape
-        return self.__class__(new_shape, new_data)
+        return self.__class__(new_data)
 
     def __setitem__(self, key, value):
         self.data.__setitem__(key, value)

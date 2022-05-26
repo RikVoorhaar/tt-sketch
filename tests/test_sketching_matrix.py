@@ -312,7 +312,7 @@ def test_sketch_dense(n_dims):
     left_rank = 100
     right_rank = 200
     tensor_data = np.random.normal(size=shape)
-    tensor = DenseTensor(shape, tensor_data)
+    tensor = DenseTensor(tensor_data)
     stt = stream_sketch(
         tensor,
         left_rank,

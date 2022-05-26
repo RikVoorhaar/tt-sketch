@@ -9,15 +9,15 @@ import numpy as np
 import pandas as pd
 from itertools import product
 from tqdm import tqdm
-from tt_stream_sketch.drm import DenseGaussianDRM, TensorTrainDRM
+from typing import List
+from tt_sketch.drm import TensorTrainDRM
 import matplotlib.pyplot as plt
-from tt_stream_sketch.tensor import TensorTrain, TensorSum
-from tt_stream_sketch.sketched_tensor_train import SketchedTensorTrain
+from tt_sketch.tensor import TensorTrain, TensorSum, Tensor
 
 from experiment_base import (
     Experiment,
-    experiment_recursive_sketch,
-    experiment_tensor_sketch,
+    experiment_orthogonal_sketch,
+    experiment_stream_sketch,
     experiment_tt_svd,
 )
 
@@ -29,52 +29,42 @@ tt_rank = 3
 num_tts = 20
 
 np.random.seed(179)
-tt_sum = []
-coeffs = np.logspace(0, -8, num_tts)
+tt_summands_list: List[Tensor] = []
+coeffs = np.logspace(0, -20, num_tts)
 for coeff in coeffs:
-    tensor_tt = TensorTrain.random(shape, rank=tt_rank)
-    tensor_tt[0] = tensor_tt[0] * coeff
-    tt_sum.append(tensor_tt)
-tt_sum = TensorSum(tt_sum)
-tt_sum_dense = tt_sum.dense()
+    tensor_tt = TensorTrain.random(shape, rank=tt_rank) * coeff
+    tt_summands_list.append(tensor_tt)
+tensor = TensorSum(tt_summands_list)
 csv_filename = "results/right_oversampling.csv"
 experiment = Experiment(csv_filename)
 
 # %%
 left_rank = 10
-right_ranks = range(10, 31)
+right_ranks = range(11, 31)
 
-runs = range(20)
+runs = range(30)
 
-for right_rank, run in tqdm(
-    list(product(right_ranks, runs)), desc="recursive big-sketch"
-):
+for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="OTTS"):
     experiment.do_experiment(
-        tt_sum_dense,
-        "recursive_sketch",
-        experiment_recursive_sketch,
+        tensor,
+        "OTTS",
+        experiment_orthogonal_sketch,
         left_rank=left_rank,
         right_rank=right_rank,
         run=run,
     )
 
-for right_rank, run in tqdm(
-    list(product(right_ranks, runs)), desc="Sparse-sketch"
-):
+for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="STTA"):
     experiment.do_experiment(
-        tt_sum,
-        "sketched_dense",
-        experiment_tensor_sketch,
+        tensor,
+        "STTA",
+        experiment_stream_sketch,
         left_rank=left_rank,
         right_rank=right_rank,
-        left_sketch_type=TensorTrainDRM,
-        right_sketch_type=TensorTrainDRM,
         run=run,
     )
 
-experiment.do_experiment(
-    tt_sum_dense, "tt_svd", experiment_tt_svd, rank=left_rank
-)
+experiment.do_experiment(tensor, "tt_svd", experiment_tt_svd, rank=left_rank)
 
 # %%
 df = pd.read_csv(csv_filename)
@@ -83,34 +73,29 @@ plt.figure(figsize=(8, 4))
 ttsvd = df[df["name"] == "tt_svd"]
 plt.axhline(ttsvd["error"].iloc[0], ls="--", color="k", label="TT-SVD")
 
-rsketch = df[df["name"] == "recursive_sketch"]
+rsketch = df[df["name"] == "OTTS"]
 right_ranks = rsketch["right_rank"].unique()
-
+plot_ranks = right_ranks - left_rank
 error_gb = rsketch.groupby(rsketch["right_rank"]).error
 errors05 = error_gb.quantile(0.5).values
-plt.plot(errors05, marker=".", label="OTTS median")
+plt.plot(plot_ranks, errors05, marker=".", label="OTTS median")
 errors08 = error_gb.quantile(0.8).values
-plt.plot(errors08, "--", label="OTTS 80th percentile")
+plt.plot(plot_ranks, errors08, "--", label="OTTS 80th percentile")
 errors02 = error_gb.quantile(0.2).values
-plt.plot(errors02, "--", label="OTTS 20th percentile")
-plt.yscale("log")
-plt.xticks(right_ranks - left_rank)
-plt.xlabel("Right oversampling $\ell$")
-plt.legend()
+plt.plot(plot_ranks, errors02, "--", label="OTTS 20th percentile")
 
 
-ssketch = df[df["name"] == "sketched_dense"]
+ssketch = df[df["name"] == "STTA"]
 error_gb = ssketch.groupby(ssketch["right_rank"]).error
 errors05 = error_gb.quantile(0.5).values
-plt.plot(errors05, marker=".", label="STTA median")
+plt.plot(plot_ranks, errors05, marker=".", label="STTA median")
 errors08 = error_gb.quantile(0.8).values
-plt.plot(errors08, "-.", label="STTA 80th percentile")
+plt.plot(plot_ranks, errors08, "-.", label="STTA 80th percentile")
 errors02 = error_gb.quantile(0.2).values
-plt.plot(errors02, "-.", label="STTA 20th percentile")
-
+plt.plot(plot_ranks, errors02, "-.", label="STTA 20th percentile")
 
 plt.yscale("log")
-plt.xticks(right_ranks - left_rank)
+plt.xticks(plot_ranks)
 plt.xlabel("Right oversampling $\ell$")
 plt.ylabel("L2 error")
 plt.legend()

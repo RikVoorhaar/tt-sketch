@@ -1,13 +1,11 @@
 import time
-from copy import copy
 from functools import reduce
 from os.path import isfile
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import pandas as pd
-from tt_sketch.recursive_big_sketch import recursive_big_sketch
-from tt_sketch.sketched_tensor_train import SketchedTensorTrain
-from tt_sketch.tensor import Tensor, TensorTrain
+from tt_sketch.sketch import stream_sketch, orthogonal_sketch
+from tt_sketch.tensor import Tensor
 from tt_sketch.tt_svd import tt_svd
 
 
@@ -88,12 +86,12 @@ class Experiment:
         self.save()
 
 
-def experiment_tensor_sketch(
+def experiment_stream_sketch(
     input_tensor: Tensor,
     left_rank=None,
     right_rank=None,
-    left_sketch_type=None,
-    right_sketch_type=None,
+    left_drm_type=None,
+    right_drm_type=None,
     error_func: Optional[Callable[..., float]] = None,
     **kwargs,
 ) -> float:
@@ -101,29 +99,42 @@ def experiment_tensor_sketch(
         input_tensor,
         left_rank=left_rank,
         right_rank=right_rank,
-        left_sketch_type=left_sketch_type,
-        right_sketch_type=right_sketch_type,
+        left_drm_type=left_drm_type,
+        right_drm_type=right_drm_type,
     )
 
     if error_func is not None:
         error = error_func(input_tensor, tt_sketched)
     else:
-        error = tt_sketched.dense().mse_error(input_tensor)
+        error = tt_sketched.relative_error(input_tensor)
     return error
 
 
-def experiment_recursive_sketch(
-    input_tensor,
+def experiment_orthogonal_sketch(
+    input_tensor: Tensor,
     left_rank=None,
     right_rank=None,
+    left_drm_type=None,
+    right_drm_type=None,
+    error_func: Optional[Callable[..., float]] = None,
     **kwargs,
-):
-    cores = recursive_big_sketch(input_tensor.to_numpy(), left_rank, right_rank)
-    tt = TensorTrain(cores)
-    return tt.mse_error(input_tensor)
+) -> float:
+    tt_sketched = orthogonal_sketch(
+        input_tensor,
+        left_rank=left_rank,
+        right_rank=right_rank,
+        left_drm_type=left_drm_type,
+        right_drm_type=right_drm_type,
+    )
+
+    if error_func is not None:
+        error = error_func(input_tensor, tt_sketched)
+    else:
+        error = tt_sketched.relative_error(input_tensor)
+    return error
 
 
 def experiment_tt_svd(input_tensor: Tensor, rank=None, **kwargs):
-    tt = tt_svd(input_tensor.to_numpy(), rank=rank)
-    error = tt.mse_error(input_tensor)
+    tt = tt_svd(input_tensor, rank=rank)
+    error = tt.relative_error(input_tensor)
     return error
