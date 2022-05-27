@@ -2,7 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 from tt_sketch.drm_base import DRM
-from tt_sketch.tensor import CPTensor, DenseTensor, SparseTensor, TensorTrain
+from tt_sketch.tensor import (
+    CPTensor,
+    DenseTensor,
+    SparseTensor,
+    TensorTrain,
+    TuckerTensor,
+)
 from tt_sketch.utils import ArrayGenerator
 
 
@@ -43,3 +49,15 @@ class CansketchCP(DRM, ABC):
         contraction of the first :math:`\mu` cores of ``tensor``.
 
         Returns array of shape ``(tensor.rank[mu], drm.rank[mu])``"""
+
+
+class CanSketchTucker(DRM, ABC):
+    @abstractmethod
+    def sketch_tucker(self, tensor: TuckerTensor) -> ArrayGenerator:
+        r"""
+        List of contractions of form :math:`Y_\mu^\top(U_1\otimes\cdots\otimes U_\mu)`
+        where ``Y_\mu`` is the DRM, and :math:`U_\mu` denotes the factors of the
+        Tucker decomposition.
+
+        Returns array of shape ``(np.prod(tensor.rank[:mu]), drm.rank[mu])``
+        """

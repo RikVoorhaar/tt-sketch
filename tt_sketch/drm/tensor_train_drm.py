@@ -7,14 +7,26 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchDense,
     CansketchSparse,
     CansketchTT,
+    CanSketchTucker,
 )
-from tt_sketch.tensor import CPTensor, DenseTensor, SparseTensor, TensorTrain
+from tt_sketch.tensor import (
+    CPTensor,
+    DenseTensor,
+    SparseTensor,
+    TensorTrain,
+    TuckerTensor,
+)
 from tt_sketch.utils import ArrayGenerator, ArrayList
 
 
 # TODO: Store DRM as a tensor.TensorTrain
 class TensorTrainDRM(
-    CansketchSparse, CansketchTT, CansketchCP, CanSlice, CansketchDense
+    CansketchSparse,
+    CansketchTT,
+    CansketchCP,
+    CanSlice,
+    CansketchDense,
+    CanSketchTucker,
 ):
     """
     Tensor train DRM. Sketches with partial contractions of a fixed TT.
@@ -93,6 +105,29 @@ class TensorTrainDRM(
             core = self.cores[mu]
             partial_contraction = np.einsum(
                 "ij,jkl->ikl", partial_contraction, core
+            )
+            partial_contraction = partial_contraction.reshape(
+                -1, partial_contraction.shape[-1]
+            )
+            yield partial_contraction.T
+
+    @handle_transpose
+    def sketch_tucker(self, tensor: TuckerTensor) -> ArrayGenerator:
+        n_dims = len(self.shape)
+        partial_contraction = np.einsum(
+            "ijk,jl->ilk", self.cores[0], tensor.factors[0].T
+        )
+        partial_contraction = partial_contraction.reshape(
+            tensor.rank[0], self.rank[0]
+        )
+        yield partial_contraction.T
+
+        for mu in range(1, n_dims - 1):
+            core_reduced = np.einsum(
+                "jkl,km->jml", self.cores[mu], tensor.factors[mu].T
+            )
+            partial_contraction = np.einsum(
+                "ij,jml->iml", partial_contraction, core_reduced
             )
             partial_contraction = partial_contraction.reshape(
                 -1, partial_contraction.shape[-1]

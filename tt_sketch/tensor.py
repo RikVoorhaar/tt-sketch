@@ -126,7 +126,7 @@ class DenseTensor(Tensor):
         return f"<Dense tensor of shape {self.shape} at {hex(id(self))}>"
 
     def __mul__(self, other: float) -> DenseTensor:
-        return self.__class__(self.shape, self.data * other)
+        return self.__class__(self.data * other)
 
 
 @dataclass
@@ -588,3 +588,74 @@ class CPTensor(Tensor):
         new_cores = self.cores
         new_cores[0] = new_cores[0] * other
         return self.__class__(new_cores)
+
+
+class TuckerTensor(Tensor):
+    """Implements Tucker tensors.
+
+    This consists of a core tensor of shape ``(s1, ..., sd)`` and ``d``
+    factor matrices of shape ``(si, ni)``, where ``(n1, ..., nd)`` is the
+    overall shape of the tensor."""
+
+    def __init__(self, factors: ArrayList, core: npt.NDArray) -> None:
+        self.core = core
+        self.factors = factors
+
+        self.shape = tuple(U.shape[1] for U in factors)
+        self.rank = tuple(U.shape[0] for U in factors)
+
+    @property
+    def T(self) -> TuckerTensor:
+        new_factors = self.factors[::-1]
+        permutation = tuple(range(len(self.shape))[::-1])
+        new_core = np.transpose(self.core, permutation)
+        return self.__class__(new_factors, new_core)
+
+    @property
+    def size(self) -> int:
+        return self.core.size + sum(U.size for U in self.factors)
+
+    def to_numpy(self) -> npt.NDArray[np.float64]:
+        core_contracted = self.core
+        for i, U in enumerate(self.factors):
+            left_dim = np.prod(self.shape[:i])
+            right_dim = np.prod(self.rank[: i + 1])
+            core_mat = core_contracted.reshape(
+                left_dim, self.rank[i], right_dim
+            )
+            core_contracted = np.einsum("ijk,jl->ilk", core_mat, U)
+        return core_contracted
+
+    def __mul__(self, other: float) -> TuckerTensor:
+        new_core = self.core * other
+        return self.__class__(self.factors, new_core)
+
+    def __repr__(self) -> str:
+        return (
+            f"<Tucker tensor of shape {self.shape} and rank {self.rank} "
+            f"at {hex(id(self))}>"
+        )
+
+    @classmethod
+    def random(
+        cls,
+        shape: Tuple[int, ...],
+        rank: Union[int, Tuple[int, ...]],
+        seed: Optional[int] = None,
+    ) -> TuckerTensor:
+        if seed is not None:
+            np.random.seed(seed)
+        d = len(shape)
+        try:
+            rank_tuple = tuple(rank)  # type: ignore
+        except TypeError:
+            rank_tuple = (rank,) * d  # type: ignore
+
+        core = np.random.normal(size=rank_tuple)
+        factors = []
+        for r, n in zip(rank_tuple, shape):
+            U = np.random.normal(size=(r, n))
+            U = np.linalg.qr(U.T)[0].T
+            factors.append(U)
+
+        return cls(factors, core)
