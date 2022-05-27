@@ -14,7 +14,7 @@ def sketch_omega_tucker(
     mu: int,
     **kwargs
 ):
-    mode = tuple(range(mu))
+    mode = tuple(range(mu + 1))
     core_mat = matricize(tensor.core, mode, mat_shape=True)
     return left_sketch.T @ core_mat @ right_sketch
 
@@ -38,4 +38,5 @@ def sketch_psi_tucker(
         Psi = np.einsum(
             "ij,jkl,lm->ikm", left_sketch.T, core_ord3, right_sketch
         )
+    Psi = np.einsum("ijk,jl->ilk", Psi, tensor.factors[mu])
     return Psi

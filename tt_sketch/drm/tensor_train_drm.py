@@ -114,13 +114,14 @@ class TensorTrainDRM(
     @handle_transpose
     def sketch_tucker(self, tensor: TuckerTensor) -> ArrayGenerator:
         n_dims = len(self.shape)
+        print("core shape:", self.cores[0].shape)
         partial_contraction = np.einsum(
             "ijk,jl->ilk", self.cores[0], tensor.factors[0].T
         )
         partial_contraction = partial_contraction.reshape(
             tensor.rank[0], self.rank[0]
         )
-        yield partial_contraction.T
+        yield partial_contraction
 
         for mu in range(1, n_dims - 1):
             core_reduced = np.einsum(
@@ -132,4 +133,4 @@ class TensorTrainDRM(
             partial_contraction = partial_contraction.reshape(
                 -1, partial_contraction.shape[-1]
             )
-            yield partial_contraction.T
+            yield partial_contraction

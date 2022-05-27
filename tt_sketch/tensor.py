@@ -80,6 +80,12 @@ class Tensor(ABC):
     def __truediv__(self, other: float):
         return self.__mul__(1 / other)
 
+    def __sub__(self, other: Tensor) -> Tensor:
+        return self + (-other)
+    
+    def __neg__(self) -> Tensor:
+        return self * -1
+
 
 class DenseTensor(Tensor):
     shape: Tuple[int, ...]
@@ -618,13 +624,13 @@ class TuckerTensor(Tensor):
     def to_numpy(self) -> npt.NDArray[np.float64]:
         core_contracted = self.core
         for i, U in enumerate(self.factors):
-            left_dim = np.prod(self.shape[:i])
-            right_dim = np.prod(self.rank[: i + 1])
+            left_dim = np.prod(self.shape[:i], dtype=np.int64)
+            right_dim = np.prod(self.rank[i + 1:], dtype=np.int64)
             core_mat = core_contracted.reshape(
                 left_dim, self.rank[i], right_dim
             )
             core_contracted = np.einsum("ijk,jl->ilk", core_mat, U)
-        return core_contracted
+        return core_contracted.reshape(self.shape)
 
     def __mul__(self, other: float) -> TuckerTensor:
         new_core = self.core * other
@@ -650,6 +656,7 @@ class TuckerTensor(Tensor):
             rank_tuple = tuple(rank)  # type: ignore
         except TypeError:
             rank_tuple = (rank,) * d  # type: ignore
+        rank_tuple = tuple(min(r1, r2) for r1, r2 in zip(rank_tuple, shape))
 
         core = np.random.normal(size=rank_tuple)
         factors = []

@@ -24,7 +24,7 @@ from tt_sketch.tensor import (
     CPTensor,
     TensorSum,
     DenseTensor,
-    # SketchedTensorTrain,
+    TuckerTensor
 )
 from tt_sketch.sketch import (
     stream_sketch,
@@ -475,6 +475,29 @@ cp_drm_pairs = ["|".join(s) for s in itertools.permutations(cp_drm_list, 2)]
 cp_drm_pairs.extend(["|".join([s, s]) for s in cp_drm_list])
 assert len(cp_drm_pairs) > 0
 
+
+@pytest.mark.parametrize("n_dims", [2, 3])
+@pytest.mark.parametrize("rank", [2, 3])
+@pytest.mark.parametrize("orthogonalize", [True, False])
+def test_exact_recovery_tucker(n_dims, rank,  orthogonalize):
+    seed = 180
+    X_shape = tuple(range(10, 10 + n_dims))
+    X_tucker = TuckerTensor.random(X_shape, rank, seed=seed)
+    X = X_tucker.to_numpy()
+
+    left_rank = tuple(range(rank, rank + n_dims - 1))
+    right_rank = tuple(range(rank + 1, rank + n_dims))
+
+    general_exact_recovery(
+        X,
+        X_tucker,
+        left_rank,
+        right_rank,
+        seed,
+        left_drm_type=TensorTrainDRM,
+        right_drm_type=TensorTrainDRM,
+        orthogonalize=orthogonalize,
+    )
 
 @pytest.mark.parametrize("drm_types", cp_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])

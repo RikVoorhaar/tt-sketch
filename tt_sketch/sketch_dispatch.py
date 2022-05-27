@@ -16,6 +16,7 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchDense,
     CansketchSparse,
     CansketchTT,
+    CanSketchTucker,
 )
 from tt_sketch.sketching_methods.cp_sketch import sketch_omega_cp, sketch_psi_cp
 from tt_sketch.sketching_methods.dense_sketch import (
@@ -30,6 +31,10 @@ from tt_sketch.sketching_methods.tensor_train_sketch import (
     sketch_omega_tt,
     sketch_psi_tt,
 )
+from tt_sketch.sketching_methods.tucker_sketch import (
+    sketch_omega_tucker,
+    sketch_psi_tucker,
+)
 from tt_sketch.tensor import (
     CPTensor,
     DenseTensor,
@@ -37,6 +42,7 @@ from tt_sketch.tensor import (
     Tensor,
     TensorSum,
     TensorTrain,
+    TuckerTensor,
 )
 from tt_sketch.utils import ArrayList, right_mul_pinv
 
@@ -45,6 +51,7 @@ ABSTRACT_TENSOR_SKETCH_DISPATCH = {
     TensorTrain: CansketchTT,
     DenseTensor: CansketchDense,
     CPTensor: CansketchCP,
+    TuckerTensor: CanSketchTucker,
 }
 
 DRM_SKETCH_METHOD_DISPATCH = {
@@ -52,6 +59,7 @@ DRM_SKETCH_METHOD_DISPATCH = {
     TensorTrain: "sketch_tt",
     DenseTensor: "sketch_dense",
     CPTensor: "sketch_cp",
+    TuckerTensor: "sketch_tucker",
 }
 
 
@@ -60,6 +68,7 @@ OMEGA_METHODS = {
     TensorTrain: sketch_omega_tt,
     DenseTensor: sketch_omega_dense,
     CPTensor: sketch_omega_cp,
+    TuckerTensor: sketch_omega_tucker,
 }
 
 PSI_METHODS = {
@@ -67,6 +76,7 @@ PSI_METHODS = {
     TensorTrain: sketch_psi_tt,
     DenseTensor: sketch_psi_dense,
     CPTensor: sketch_psi_cp,
+    TuckerTensor: sketch_psi_tucker,
 }
 
 
