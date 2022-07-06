@@ -13,7 +13,7 @@ ext_modules = [
         [os.path.join("tt_sketch", "drm", "fast_lazy_gaussian.pyx")],
         extra_compile_args=["-fopenmp"],
         extra_link_args=["-fopenmp"],
-        include_dirs=[np.get_include()],
+        include_dirs=[np.get_include(),"tt_sketch/drm"],
     )
 ]
 
@@ -35,11 +35,13 @@ setuptools.setup(
     cmdclass={"build_ext": build_ext},
     ext_modules=cythonize(ext_modules),
     packages=setuptools.find_packages(),
+    include_package_data=True,
+    package_data={"": ["*.pyx"]},
     install_requires=[
         "numpy",
         "scipy",
     ],
-    setup_requires=["pytest-runner"],
+    setup_requires=["pytest-runner", "cython","numpy","scipy"],
     tests_require=[
         "mypy",
         "pycodestyle",
