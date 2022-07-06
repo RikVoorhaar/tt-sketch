@@ -2,4 +2,5 @@ nbsphinx
 nbsphinx_link
 numpy
 scipy
+Cython
 IPython
