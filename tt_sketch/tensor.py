@@ -4,12 +4,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, TypeVar, Generic
 
 import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
+
+TType = TypeVar("TType", bound="Tensor")
 
 
 class Tensor(ABC):
@@ -19,7 +21,7 @@ class Tensor(ABC):
     shape: Tuple[int, ...]
 
     @abstractproperty
-    def T(self) -> Tensor:
+    def T(self: TType) -> TType:
         """Transpose of the tensor.
 
         If a tensor has shape (n1,n2,...,nd), then transpose of the tensor
@@ -71,10 +73,10 @@ class Tensor(ABC):
             return TensorSum([self, other])
 
     @abstractmethod
-    def __mul__(self, other: float) -> Tensor:
+    def __mul__(self: TType, other: float) -> TType:
         """Multiplication by a scalar"""
 
-    def __rmul__(self, other: float) -> Tensor:
+    def __rmul__(self: TType, other: float) -> TType:
         return self.__mul__(other)
 
     def __truediv__(self, other: float):
@@ -82,10 +84,9 @@ class Tensor(ABC):
 
     def __sub__(self, other: Tensor) -> Tensor:
         return self + (-other)
-    
+
     def __neg__(self) -> Tensor:
         return self * -1
-
 
 class DenseTensor(Tensor):
     shape: Tuple[int, ...]
@@ -470,13 +471,13 @@ def diff_tt_sparse(tt: TensorTrain, sparse_tensor: SparseTensor) -> float:
     return norm_squared**0.5
 
 
-class TensorSum(Tensor):
+class TensorSum(Generic[TType], Tensor):
     """Container for sums of tensors"""
 
     shape: Tuple[int, ...]
-    tensors: List[Tensor]
+    tensors: List[TType]
 
-    def __init__(self, tensors: List[Tensor], shape=None) -> None:
+    def __init__(self, tensors: List[TType], shape=None) -> None:
         if shape is None:
             shape = tensors[0].shape
         self.shape = shape
@@ -488,7 +489,7 @@ class TensorSum(Tensor):
 
     @property
     def T(self) -> TensorSum:
-        new_tensors = [X.T for X in self.tensors]
+        new_tensors: List[TType] = [X.T for X in self.tensors]
         return self.__class__(new_tensors)
 
     def to_numpy(self) -> npt.NDArray[np.float64]:
@@ -497,13 +498,13 @@ class TensorSum(Tensor):
             s += X.to_numpy()
         return s
 
-    def __add__(self, other: Tensor) -> TensorSum:
+    def __add__(self, other: TType) -> TensorSum:
         if isinstance(other, TensorSum):
             return self.__class__(self.tensors + other.tensors)
         else:
             return self.__class__(self.tensors + [other])
 
-    def __iadd__(self, other: Tensor) -> TensorSum:
+    def __iadd__(self, other: TType) -> TensorSum:
         if isinstance(other, TensorSum):
             self.tensors.extend(other.tensors)
         else:
@@ -625,7 +626,7 @@ class TuckerTensor(Tensor):
         core_contracted = self.core
         for i, U in enumerate(self.factors):
             left_dim = np.prod(self.shape[:i], dtype=np.int64)
-            right_dim = np.prod(self.rank[i + 1:], dtype=np.int64)
+            right_dim = np.prod(self.rank[i + 1 :], dtype=np.int64)
             core_mat = core_contracted.reshape(
                 left_dim, self.rank[i], right_dim
             )
