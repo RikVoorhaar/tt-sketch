@@ -36,7 +36,11 @@ def sketch_psi_tucker(
         Psi = np.einsum("ij,jkl->ikl", left_sketch.T, core_ord3)
     else:
         Psi = np.einsum(
-            "ij,jkl,lm->ikm", left_sketch.T, core_ord3, right_sketch
+            "ij,jkl,lm->ikm",
+            left_sketch.T,
+            core_ord3,
+            right_sketch,
+            optimize="optimal",
         )
     Psi = np.einsum("ijk,jl->ilk", Psi, tensor.factors[mu])
     return Psi

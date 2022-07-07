@@ -26,5 +26,11 @@ def sketch_psi_cp(
         Psi = np.einsum("il,kl->ik", left_sketch.T, cp_core)
         Psi = Psi.reshape(Psi.shape + (1,))
     else:
-        Psi = np.einsum("ij,kj,jm->ikm", left_sketch.T, cp_core, right_sketch)
+        Psi = np.einsum(
+            "ij,kj,jm->ikm",
+            left_sketch.T,
+            cp_core,
+            right_sketch,
+            optimize="optimal",
+        )
     return Psi

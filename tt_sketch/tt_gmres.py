@@ -122,15 +122,16 @@ class MPO(Tensor, TTLinearMap):
 
 
 def tt_sum_round_orthog(
-    X: TensorSum, epsilon: float, max_rank: Tuple[int, ...]
+    X: TensorSum, epsilon: float, max_rank: Tuple[int, ...], round=True
 ) -> TensorTrain:
     """Rounds and orthogonalizes a sum of tensor trains."""
     max_rank_trimmed = process_tt_rank(max_rank, X.shape, trim=True)
     left_rank = max_rank_trimmed
     right_rank = tuple(r * 2 for r in max_rank_trimmed)
     tt = stream_sketch(X, left_rank=left_rank, right_rank=right_rank).to_tt()
-    tt = tt.round(eps=epsilon, max_rank=max_rank_trimmed)
-    tt = tt.orthogonalize()
+    if round:
+        tt = tt.round(eps=epsilon, max_rank=max_rank_trimmed)
+        tt = tt.orthogonalize()
     return tt
 
 
@@ -140,12 +141,13 @@ def tt_weighted_sum_sketched(
     tt_list: List[TensorTrain],
     tolerance: float,
     max_rank: Tuple[int, ...],
+    round: bool = True,
 ):
     """Sketched weighted sum of tensor trains."""
     x_sum = TensorSum([x0])
     for coeff, tt in zip(coeffs, tt_list):
         x_sum += coeff * tt
-    x = tt_sum_round_orthog(x_sum, tolerance, max_rank)
+    x = tt_sum_round_orthog(x_sum, tolerance, max_rank, round)
     return x
 
 

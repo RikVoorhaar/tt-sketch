@@ -312,6 +312,9 @@ class SketchedTensorTrain(Tensor):
             self.sketch_ * other, self.left_drm, self.right_drm
         )
 
+    def dot(self, other: Tensor, reverse=False) -> float:
+        return self.to_tt().dot(other, reverse)
+
 
 def _blocked_stream_sketch_components(
     tensor: Tensor,

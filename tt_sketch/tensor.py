@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union, TypeVar, Generic
+import warnings
 
 import numpy as np
 import numpy.typing as npt
@@ -36,8 +37,23 @@ class Tensor(ABC):
     def to_numpy(self) -> npt.NDArray[np.float64]:
         """Converts the tensor to a (dense) numpy array of same shape."""
 
+    def error(
+        self: TType, other: TType, relative: bool = False, rmse: bool = False
+    ) -> float:
+        """L2 error of the tensor"""
+        self_norm = self.norm()
+        other_norm = other.norm()
+        dot = self.dot(other)
+        error = np.sqrt(np.abs(self_norm**2 - 2 * dot + other_norm**2))
+        if relative:
+            error /= other_norm
+        if rmse:
+            error /= self.size
+        return error
+
     def mse_error(self, other: Union[Tensor, npt.NDArray]) -> float:
         """Computes the MSE error"""
+        warnings.warn("deprecated method", DeprecationWarning)
         if isinstance(other, Tensor):
             other = other.to_numpy()
         square_error = np.linalg.norm(self.to_numpy() - other) ** 2
@@ -45,6 +61,7 @@ class Tensor(ABC):
 
     def relative_error(self, other: Union[Tensor, npt.NDArray]) -> float:
         """Computes the relative error"""
+        warnings.warn("deprecated method", DeprecationWarning)
         if isinstance(other, Tensor):
             other = other.to_numpy()
         error = np.linalg.norm(self.to_numpy() - other)
@@ -87,6 +104,30 @@ class Tensor(ABC):
 
     def __neg__(self) -> Tensor:
         return self * -1
+
+    def dot(self: TType, other: TType, reverse=False) -> float:
+        """Dot product of two tensors"""
+        if isinstance(other, TensorSum):
+            return other.dot(self)
+        if not reverse:  # try first to see if other can dot self
+            return other.dot(self, reverse=True)
+        warnings.warn(
+            f"Using fallback method for dot of {type(self)} and {type(other)}.",
+            RuntimeWarning,
+        )
+        print("generic method :(")
+        self_np = self.to_numpy().reshape(-1)
+        other_np = other.to_numpy().reshape(-1)
+        return np.dot(self_np, other_np)
+
+    def norm(self) -> float:
+        """L2 norm of the tensor"""
+        # np.abs because dot can be negative due to numerical errors
+        return np.sqrt(np.abs(self.dot(self)))
+
+    def __matmul__(self: TType, other: TType) -> float:
+        return self.dot(other)
+
 
 class DenseTensor(Tensor):
     shape: Tuple[int, ...]
@@ -417,23 +458,22 @@ class TensorTrain(Tensor):
         new_tt = self.__class__(new_cores)
         return new_tt
 
-    def dot(self, other: TensorTrain) -> float:
+    def dot(self, other: Tensor, reverse=False) -> float:
         """
         Compute the dot product of two tensor trains with the same shape.
 
         Result is computed in a left-to-right sweep.
         """
-
-        result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
-        for core1, core2 in zip(self.cores[1:], other.cores[1:]):
-            # optimize is essential here, reduces complexity from r^4*n to r^3*n
-            result = np.einsum(
-                "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
-            )
-        return np.sum(result)
-
-    def norm(self) -> float:
-        return np.sqrt(self.dot(self))
+        if not isinstance(other, TensorTrain):
+            return super().dot(other, reverse=reverse)
+        else:
+            result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
+            for core1, core2 in zip(self.cores[1:], other.cores[1:]):
+                # optimize reduces complexity from r^4*n to r^3*n
+                result = np.einsum(
+                    "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
+                )
+            return np.sum(result)
 
     def orthogonalize(self) -> TensorTrain:
         """Do QR sweep to left-orthogonalize"""
@@ -523,6 +563,9 @@ class TensorSum(Generic[TType], Tensor):
 
     def __mul__(self, other: float) -> TensorSum:
         return self.__class__([X * other for X in self.tensors])
+
+    def dot(self, other: Tensor, reverse=False) -> float:
+        return sum(X.dot(other, reverse) for X in self.tensors)
 
 
 class CPTensor(Tensor):
