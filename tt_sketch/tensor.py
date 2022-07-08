@@ -423,6 +423,25 @@ class TensorTrain(Tensor):
 
         return self.__class__(new_cores[::-1])
 
+    def svdvals(self) -> List[npt.NDArray]:
+        """Return singular value of each mode"""
+        tt = self.orthogonalize()
+        svdvals = []
+        for mu, C in list(enumerate(tt.cores))[::-1]:
+            if mu < tt.ndim - 1:
+                US = U @ np.diag(S)
+                C = np.einsum("ijk,kl->ijl", C, US)
+
+            if mu > 0:
+                C_mat = C.reshape(C.shape[0], C.shape[1] * C.shape[2])
+            else:
+                C_mat = C.reshape(C.shape[0] * C.shape[1], C.shape[2])
+
+            U, S, Vt = np.linalg.svd(C_mat)
+            svdvals.append(S)
+        svdvals = svdvals[::-1]
+        return svdvals
+
     def __mul__(self, other: float) -> TensorTrain:
         new_cores = deepcopy(self.cores)
         # Absorb number into last core, since if we do orthogonalize, we left

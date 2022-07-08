@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.io
 import scipy.linalg
+from time import perf_counter
 from tqdm import tqdm
 from tt_sketch.sketch import orthogonal_sketch, stream_sketch
 from tt_sketch.tensor import Tensor, TensorSum, TensorTrain
@@ -20,8 +21,6 @@ from tt_sketch.tt_gmres import (
     round_tt_sum,
     TTLinearMapInverse,
     TTLinearMapSum,
-    tt_weighted_sum_exact,
-    tt_weighted_sum_sketched,
 )
 from tt_sketch.utils import (
     ArrayList,
@@ -55,12 +54,11 @@ class CookieMap(TTLinearMap):
 
     def cookie_call(self, other: TensorTrain) -> TensorTrain:
         new_cores = deepcopy(other.cores)
-        new_cores[0] = np.einsum(
-            "ijk,jl->ilk", new_cores[0], self.A
-        )
-        new_cores[self.mode] = np.einsum(
-            "ijk,j->ijk", new_cores[self.mode], self.coeffs
-        )
+        new_cores[0] = np.einsum("ijk,jl->ilk", new_cores[0], self.A)
+        if self.mode != 0:
+            new_cores[self.mode] = np.einsum(
+                "ijk,j->ijk", new_cores[self.mode], self.coeffs
+            )
         tt = TensorTrain(new_cores)
         if self.preconditioner is not None:
             tt = self.preconditioner(tt)
@@ -89,7 +87,7 @@ def prepare_cookie_problem(num_coeffs, num_cookies):
         if mu == 0:
             coeffs = np.ones(A.shape[0])
         else:
-            coeffs = -(np.linspace(0, 10, num_coeffs, dtype=np.float64))
+            coeffs = np.linspace(0, 10, num_coeffs, dtype=np.float64)
         A_precond_list.append(A * np.mean(coeffs))
         coeffs_list.append(coeffs)
 
@@ -120,6 +118,12 @@ def prepare_cookie_problem(num_coeffs, num_cookies):
     return map_sum, B, B_pr, precond_map
 
 
+# TODO: keep precond separate, needed to compute correct error
+# TODO: Support two-stage rounding at end
+# TODO: Make experiment dataframes for plotting
+# TODO: Support stream-sketch and orth-sketch separately
+# TODO: Better verbosity
+# TODO: Make version where all computations are done in a sketch-range
 def tt_sum_gmres(
     A: TTLinearMapSum,
     b: TensorTrain,
@@ -129,6 +133,8 @@ def tt_sum_gmres(
     maxiter: int = 100,
     symmetric: bool = False,
     exact: bool = False,
+    save_basis: bool = False,
+    verbose: bool = False,
 ) -> Tuple[TensorTrain, Dict[str, List]]:
     """GMRES solver for TT linear map."""
     if A.out_shape != b.shape:
@@ -145,8 +151,9 @@ def tt_sum_gmres(
         x0 = TensorTrain.zero(shape=A.in_shape, rank=1)
 
     b_norm = b.norm()
+    initial_time = perf_counter()
     residual = b - A(x0)
-    residual = round_tt_sum(residual, max_rank=max_rank)
+    residual = round_tt_sum(residual, max_rank=max_rank, exact=exact)
     residual_norm = residual.norm()
     beta = residual_norm
     nu_list: List[TensorTrain] = [residual / beta]
@@ -156,14 +163,13 @@ def tt_sum_gmres(
     history["w_norm"].append(nu_list[-1].norm())
     history["rank"].append(residual.rank)
     history["residual_norm"].append(residual_norm / b_norm)
-
-    tt_weighted_sum_func = (
-        tt_weighted_sum_exact if exact else tt_weighted_sum_sketched
-    )
+    history["step_time"].append(perf_counter() - initial_time)
 
     for j in range(maxiter):
+        current_time = perf_counter()
         delta = tolerance / (residual_norm / beta)
-        print(j, history["residual_norm"][-1], history["rank"][-1])
+        if verbose:
+            print(j, history["residual_norm"][-1], history["rank"][-1])
         w = A(nu_list[-1])
         w = round_tt_sum(w, eps=delta, max_rank=max_rank, exact=exact)
 
@@ -171,13 +177,14 @@ def tt_sum_gmres(
         for i in range(min_j, j + 1):
             H_matrix[i, j] = w.dot(nu_list[i])
 
-        w = tt_weighted_sum_func(
+        w = tt_weighted_sum(
             w,
             -H_matrix[min_j : j + 1, j],
             nu_list[min_j : j + 1],
             tolerance,
             max_rank,
-            # round=True,
+            exact=exact,
+            oversample=20,
         )
         H_matrix[j + 1, j] = w.norm()
         nu_list.append(w / H_matrix[j + 1, j])
@@ -190,14 +197,29 @@ def tt_sum_gmres(
         history["rank"].append(w.rank)
         history["w_norm"].append(H_matrix[j + 1, j])
         history["delta"].append(delta)
+        history["step_time"].append(perf_counter() - current_time)
 
         if residual_norm / b_norm < tolerance:
             break
 
-    x = tt_weighted_sum_sketched(
-        x0, y[: j + 1], nu_list[: j + 1], tolerance, max_rank, round=True
+    y = y[: j + 1]
+    nu_list = nu_list[: j + 1]
+    current_time = perf_counter()
+    x = tt_weighted_sum(
+        x0,
+        y,
+        nu_list,
+        tolerance,
+        max_rank,
+        exact=exact,
+        oversample=10,
     )
-    history["H_matrix"] = H_matrix
+    history["final_round_time"] = perf_counter() - current_time
+    history["total_time"] = perf_counter() - initial_time
+    if save_basis:
+        history["H_matrix"] = H_matrix
+        history["nu_list"] = nu_list
+        history["y"] = y
     return x, history
 
 
@@ -205,40 +227,47 @@ def tt_sum_gmres(
 map_sum, B, B_pr, precond_map = prepare_cookie_problem(10, 4)
 
 x0 = TensorTrain.zero(shape=map_sum.in_shape, rank=10)
-max_rank = (1000, 100, 100, 10)
-max_rank = 50
+max_rank = 20
 result, history = tt_sum_gmres(
     A=map_sum,
     b=B_pr,
     x0=x0,
     max_rank=max_rank,
     maxiter=50,
+    tolerance=1e-20,
     symmetric=True,
     exact=False,
+    save_basis=True,
+    verbose=False
 )
 print(map_sum(result).error(B_pr, relative=True))
 # %%
-result, history = tt_sum_gmres(
-    A=map_sum, b=B_pr, x0=result, max_rank=max_rank, maxiter=50, symmetric=True
-)
-print(map_sum(result).error(B_pr, relative=True))
+history["total_time"], history["total_time"] - history["final_round_time"]
 # %%
-B_pr.norm()
-map_sum(x0).norm()
-# %%
-plt.plot(history["residual_norm"])
-plt.yscale("log")
-# %%
-plt.matshow(history["H_matrix"])
-# %%
+sketch_rank = 20
+tt_sketched = stream_sketch(x0, left_rank=sketch_rank, right_rank=sketch_rank+100)
+errors = []
+error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+errors.append(error)
+for y,nu in zip(history["y"], history["nu_list"]):
+    tt_sketched += y*nu
+    error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+    errors.append(error)
 
+plt.figure(figsize=(10, 5))
+svdvals = tt_sketched.to_tt().svdvals()
+for mu, S in enumerate(svdvals):
+    plt.plot(S / S[0], label=f"mode={mu}")
+plt.yscale("log")
+plt.legend()
 # %%
-# %prun tt_sum_gmres(map_sum, B, max_rank=100, maxiter=10)
+plt.plot(errors)
+plt.yscale('log')
 # %%
-# np.mean(A_precond - np.diag(np.diag(A_precond)) == 0)
-H = history["H_matrix"]
-H_aug = np.zeros((H.shape[0], H.shape[1] + 1))
-H_aug[:, :-1] = H
-e = np.zeros(H.shape[0])
-e[0] = 1
-scipy.linalg.solve(H_aug, e)
+# %%
+rounded = tt_sketched.to_tt().round(eps=1e-5)
+error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+error
+# %%
+rounded
+# %%

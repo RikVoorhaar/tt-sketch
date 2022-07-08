@@ -130,28 +130,6 @@ class MPO(Tensor, TTLinearMap):
         return self.__class__(new_cores)
 
 
-def round_tt_sum(
-    tt_sum: TensorSum[TensorTrain],
-    eps=1e-8,
-    max_rank: TTRank = None,
-    exact: bool = False,
-):
-    if exact:
-        summands = tt_sum.tensors
-        tt = summands[0]
-        for summand in summands[1:]:
-            tt = tt.add(summand)
-        return tt.round(eps, max_rank)
-    else:
-        left_rank = trim_ranks(tt_sum.shape, max_rank)
-        right_rank = tuple(r + 5 for r in left_rank)
-
-        tt = orthogonal_sketch(
-            tt_sum, left_rank=left_rank, right_rank=right_rank
-        )
-    return tt
-
-
 class TTLinearMapInverse(TTLinearMap):
     """TTLinearMap that acts by multiplying by the inverse of a matrix on a
     specified mode.
@@ -210,18 +188,18 @@ class TTLinearMapSum:
         return TensorSum(output_list)
 
 
-def tt_sum_round_orthog(
-    X: TensorSum, epsilon: float, max_rank: Tuple[int, ...], round=True
-) -> TensorTrain:
-    """Rounds and orthogonalizes a sum of tensor trains."""
-    max_rank_trimmed = process_tt_rank(max_rank, X.shape, trim=True)
-    left_rank = max_rank_trimmed
-    right_rank = tuple(r * 2 for r in max_rank_trimmed)
-    tt = stream_sketch(X, left_rank=left_rank, right_rank=right_rank).to_tt()
-    if round:
-        tt = tt.round(eps=epsilon, max_rank=max_rank_trimmed)
-        tt = tt.orthogonalize()
-    return tt
+# def tt_sum_round_orthog(
+#     X: TensorSum, epsilon: float, max_rank: Tuple[int, ...], round=True
+# ) -> TensorTrain:
+#     """Rounds and orthogonalizes a sum of tensor trains."""
+#     max_rank_trimmed = process_tt_rank(max_rank, X.shape, trim=True)
+#     left_rank = max_rank_trimmed
+#     right_rank = tuple(r * 2 for r in max_rank_trimmed)
+#     tt = stream_sketch(X, left_rank=left_rank, right_rank=right_rank).to_tt()
+#     if round:
+#         tt = tt.round(eps=epsilon, max_rank=max_rank_trimmed)
+#         tt = tt.orthogonalize()
+#     return tt
 
 
 def tt_weighted_sum_sketched(
@@ -230,13 +208,13 @@ def tt_weighted_sum_sketched(
     tt_list: List[TensorTrain],
     tolerance: float,
     max_rank: Tuple[int, ...],
-    round: bool = True,
+    round: bool = False,
 ):
     """Sketched weighted sum of tensor trains."""
     x_sum = TensorSum([x0])
     for coeff, tt in zip(coeffs, tt_list):
         x_sum += coeff * tt
-    x = tt_sum_round_orthog(x_sum, tolerance, max_rank, round)
+    x = round_tt_sum(x_sum, tolerance, max_rank, False)
     return x
 
 
@@ -255,70 +233,108 @@ def tt_weighted_sum_exact(
 
     return x
 
+def tt_weighted_sum(
+    x0: TensorTrain,
+    coeffs: npt.NDArray,
+    tt_list: List[TensorTrain],
+    tolerance: float,
+    max_rank: Tuple[int, ...],
+    exact: bool = False,
+    oversample: int = 5,
+):
+    x_sum = TensorSum([x0])
+    for coeff, tt in zip(coeffs, tt_list):
+        x_sum += coeff * tt
+    x = round_tt_sum(x_sum, tolerance, max_rank, exact, oversample)
+    return x
 
-tt_weighted_sum = tt_weighted_sum_sketched
 
 
-def tt_gmres(
-    A: TTLinearMap,
-    b: TensorTrain,
-    max_rank: TTRank,
-    x0: Optional[TensorTrain] = None,
-    tolerance: float = 1e-6,
-    maxiter: int = 100,
-) -> Tuple[TensorTrain, Dict[str, List]]:
-    """GMRES solver for TT linear map."""
-    if A.out_shape != b.shape:
-        raise ValueError("Output shape of MPO doesn't match RHS")
-    if x0 is not None and x0.shape != A.in_shape:
-        raise ValueError("Input shape of MPO doesn't match initial value")
-    if A.out_shape != A.in_shape:
-        raise ValueError("TT-GMRES only works for Hermitian tensors")
+def round_tt_sum(
+    tt_sum: TensorSum[TensorTrain],
+    eps=1e-8,
+    max_rank: TTRank = None,
+    exact: bool = False,
+    oversample: int = 5,
+):
+    if exact:
+        summands = tt_sum.tensors
+        tt = summands[0]
+        for summand in summands[1:]:
+            tt = tt.add(summand)
+        return tt.round(eps, max_rank)
+    else:
+        left_rank = trim_ranks(tt_sum.shape, max_rank)
+        right_rank = tuple(r + oversample for r in left_rank)
 
-    max_rank = process_tt_rank(max_rank, A.in_shape, trim=True)
-    if x0 is None:
-        # TODO: check whether init with zero or random init is better
-        x0 = TensorTrain.random(shape=A.in_shape, rank=max_rank)
-        # x0 = TensorTrain.zero(shape=A.in_shape, rank=max_rank)
-
-    residual = b.add(A(x0) * (-1)).round(eps=tolerance, max_rank=max_rank)
-    residual_norm = residual.norm()
-    history: Dict[str, List] = defaultdict(list)
-    history["residual_norm"].append(residual_norm)
-    history["rank"].append(residual.rank)
-    b_norm = b.norm()
-    beta = residual_norm
-    nu_list: List[TensorTrain] = [residual / beta]
-    history["w_norm"].append(nu_list[-1].norm())
-
-    H_matrix = np.zeros((maxiter + 1, maxiter))
-
-    for j in range(maxiter):
-        delta = tolerance / (residual_norm / beta)
-        w = A(nu_list[-1]).round(eps=delta, max_rank=max_rank)
-
-        for i in range(j + 1):
-            H_matrix[i, j] = w.dot(nu_list[i])
-
-        w = tt_weighted_sum(
-            w, -H_matrix[: j + 1, j], nu_list[: j + 1], tolerance, max_rank
+        tt = orthogonal_sketch(
+            tt_sum, left_rank=left_rank, right_rank=right_rank
         )
-        H_matrix[j + 1, j] = w.norm()
-        nu_list.append(w / H_matrix[j + 1, j])
+    return tt
 
-        H_red = H_matrix[: j + 2, : j + 1]
-        e1 = np.zeros(j + 2)
-        e1[0] = 1
-        y, (residual_norm,), _, _ = np.linalg.lstsq(
-            H_red, beta * e1, rcond=None
-        )
-        history["residual_norm"].append(residual_norm)
-        history["rank"].append(w.rank)
-        history["w_norm"].append(H_matrix[j + 1, j])
 
-        if residual_norm / b_norm < tolerance:
-            break
 
-    x = tt_weighted_sum(x0, y[: j + 1], nu_list[: j + 1], tolerance, max_rank)
 
-    return x, history
+# def tt_gmres(
+#     A: TTLinearMap,
+#     b: TensorTrain,
+#     max_rank: TTRank,
+#     x0: Optional[TensorTrain] = None,
+#     tolerance: float = 1e-6,
+#     maxiter: int = 100,
+# ) -> Tuple[TensorTrain, Dict[str, List]]:
+#     """GMRES solver for TT linear map."""
+#     if A.out_shape != b.shape:
+#         raise ValueError("Output shape of MPO doesn't match RHS")
+#     if x0 is not None and x0.shape != A.in_shape:
+#         raise ValueError("Input shape of MPO doesn't match initial value")
+#     if A.out_shape != A.in_shape:
+#         raise ValueError("TT-GMRES only works for Hermitian tensors")
+
+#     max_rank = process_tt_rank(max_rank, A.in_shape, trim=True)
+#     if x0 is None:
+#         # TODO: check whether init with zero or random init is better
+#         x0 = TensorTrain.random(shape=A.in_shape, rank=max_rank)
+#         # x0 = TensorTrain.zero(shape=A.in_shape, rank=max_rank)
+
+#     residual = b.add(A(x0) * (-1)).round(eps=tolerance, max_rank=max_rank)
+#     residual_norm = residual.norm()
+#     history: Dict[str, List] = defaultdict(list)
+#     history["residual_norm"].append(residual_norm)
+#     history["rank"].append(residual.rank)
+#     b_norm = b.norm()
+#     beta = residual_norm
+#     nu_list: List[TensorTrain] = [residual / beta]
+#     history["w_norm"].append(nu_list[-1].norm())
+
+#     H_matrix = np.zeros((maxiter + 1, maxiter))
+
+#     for j in range(maxiter):
+#         delta = tolerance / (residual_norm / beta)
+#         w = A(nu_list[-1]).round(eps=delta, max_rank=max_rank)
+
+#         for i in range(j + 1):
+#             H_matrix[i, j] = w.dot(nu_list[i])
+
+#         w = tt_weighted_sum(
+#             w, -H_matrix[: j + 1, j], nu_list[: j + 1], tolerance, max_rank
+#         )
+#         H_matrix[j + 1, j] = w.norm()
+#         nu_list.append(w / H_matrix[j + 1, j])
+
+#         H_red = H_matrix[: j + 2, : j + 1]
+#         e1 = np.zeros(j + 2)
+#         e1[0] = 1
+#         y, (residual_norm,), _, _ = np.linalg.lstsq(
+#             H_red, beta * e1, rcond=None
+#         )
+#         history["residual_norm"].append(np.sqrt(residual_norm) / beta)
+#         history["rank"].append(w.rank)
+#         history["w_norm"].append(H_matrix[j + 1, j])
+
+#         if residual_norm / b_norm < tolerance:
+#             break
+
+#     x = tt_weighted_sum(x0, y[: j + 1], nu_list[: j + 1], tolerance, max_rank)
+
+#     return x, history
