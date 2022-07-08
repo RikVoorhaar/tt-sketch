@@ -4,14 +4,23 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+from copy import deepcopy
 
 import numpy as np
 import numpy.typing as npt
+import scipy.linalg
 
-from tt_sketch.sketch import stream_sketch
+from tt_sketch.sketch import stream_sketch, orthogonal_sketch
 from tt_sketch.tensor import Tensor, TensorSum, TensorTrain
-from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
+from tt_sketch.utils import (
+    ArrayList,
+    TTRank,
+    process_tt_rank,
+    trim_ranks,
+    matricize,
+    dematricize,
+)
 
 
 class TTLinearMap(ABC):
@@ -119,6 +128,86 @@ class MPO(Tensor, TTLinearMap):
         new_cores = self.cores
         new_cores[0] = new_cores[0] * other
         return self.__class__(new_cores)
+
+
+def round_tt_sum(
+    tt_sum: TensorSum[TensorTrain],
+    eps=1e-8,
+    max_rank: TTRank = None,
+    exact: bool = False,
+):
+    if exact:
+        summands = tt_sum.tensors
+        tt = summands[0]
+        for summand in summands[1:]:
+            tt = tt.add(summand)
+        return tt.round(eps, max_rank)
+    else:
+        left_rank = trim_ranks(tt_sum.shape, max_rank)
+        right_rank = tuple(r + 5 for r in left_rank)
+
+        tt = orthogonal_sketch(
+            tt_sum, left_rank=left_rank, right_rank=right_rank
+        )
+    return tt
+
+
+class TTLinearMapInverse(TTLinearMap):
+    """TTLinearMap that acts by multiplying by the inverse of a matrix on a
+    specified mode.
+
+    The inverse is computed from the precomputed QR factorization of the matrix.
+    """
+
+    def __init__(self, A, shape, mode=0):
+        self.A = A
+        self.Q, self.R = np.linalg.qr(A)
+        self.mode = mode
+        self.in_shape = shape
+        self.out_shape = shape
+
+    def precond_call(self, other: TensorTrain) -> TensorTrain:
+        new_cores = deepcopy(other.cores)
+        C = new_cores[self.mode]
+        C_mat = matricize(C, mode=1, mat_shape=True)
+        sol = scipy.linalg.solve_triangular(self.R, (self.Q.T) @ C_mat)
+        new_cores[self.mode] = dematricize(sol, mode=1, shape=C.shape)
+        return TensorTrain(new_cores)
+
+    __call__ = precond_call
+
+
+class TTLinearMapSum:
+    in_shape: Tuple[int, ...]
+    out_shape: Tuple[int, ...]
+    linear_maps: List[TTLinearMap]
+
+    def __init__(self, linear_maps: List[TTLinearMap]) -> None:
+        self.linear_maps = linear_maps
+        if len(linear_maps) == 0:
+            raise ValueError("linear_maps cannot be empty")
+        self.in_shape = linear_maps[0].in_shape
+        self.out_shape = linear_maps[0].out_shape
+        for linear_map in linear_maps[1:]:
+            if linear_map.in_shape != self.in_shape:
+                raise ValueError("in_shape mismatch")
+            if linear_map.out_shape != self.out_shape:
+                raise ValueError("out_shape mismatch")
+
+    def __call__(
+        self, input_tensor: Union[TensorTrain, TensorSum[TensorTrain]]
+    ) -> TensorSum[TensorTrain]:
+        if isinstance(input_tensor, TensorTrain):
+            tensor_list = [input_tensor]
+        else:
+            tensor_list = input_tensor.tensors
+
+        output_list = []
+        for linear_map in self.linear_maps:
+            for tensor in tensor_list:
+                output_list.append(linear_map(tensor))
+
+        return TensorSum(output_list)
 
 
 def tt_sum_round_orthog(
