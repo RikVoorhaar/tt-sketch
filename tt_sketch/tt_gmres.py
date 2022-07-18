@@ -7,6 +7,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
+import logging
 from math import ceil
 from time import perf_counter
 from typing import Dict, List, Literal, Optional, Tuple, Union, Any
@@ -253,7 +254,7 @@ class TTLinearMapSum:
 #     return x
 
 
-ROUNDING_MODE = Literal["exact", "pairwise", "sketch", "orth_sketch"]
+ROUNDING_MODE = Literal["exact", "pairwise", "sketch", "orth_sketch", None]
 
 
 def round_tt_sum(
@@ -262,7 +263,16 @@ def round_tt_sum(
     eps: Optional[float] = None,
     method: ROUNDING_MODE = "sketch",
     oversample_factor: float = 2,
-):
+) -> TensorTrain:
+    """Round a sum of tensor trains to a given rank.
+
+    method can be one of:
+    - "exact": Add all TTs to one big TT and round it using TT-SVD
+    - "pairwise": Add each TT to the next one and round them separately
+    - "sketch": Use streaming sketch for rounding
+    - "orth_sketch": Use orthogonal sketch for rounding.
+    - ``None``: Do not round (for debugging purposes mostly).
+    """
     if method == "exact":
         summands = tt_sum.tensors
         tt = summands[0]
@@ -287,6 +297,8 @@ def round_tt_sum(
         tt = orthogonal_sketch(
             tt_sum, left_rank=left_rank, right_rank=right_rank
         )
+    elif method is None:
+        return tt_sum  # type: ignore
     else:
         raise ValueError(f"Unknown rounding method: {method}")
 
@@ -361,7 +373,9 @@ def tt_sum_gmres(
         current_time = perf_counter()
         delta = tolerance / (residual_norm / beta)
         if verbose:
-            print(j, history["residual_norm"][-1], history["rank"][-1])
+            logging.info(
+                f"Iteration {j + 1}/{maxiter}, residual norm: {residual_norm / b_norm:.4e}"
+            )
         w_sum = apply_A_pr(nu_list[-1])
         w_rounded = round_tt_sum(
             w_sum, eps=delta, max_rank=max_rank, method=rounding_method
