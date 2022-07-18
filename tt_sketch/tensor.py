@@ -4,7 +4,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union, TypeVar, Generic
+from typing import (
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    TypeVar,
+    Generic,
+)
 import warnings
 
 import numpy as np
@@ -580,8 +589,13 @@ class TensorSum(Generic[TType], Tensor):
     def num_summands(self) -> int:
         return len(self.tensors)
 
-    def __mul__(self, other: float) -> TensorSum:
-        return self.__class__([X * other for X in self.tensors])
+    def __mul__(self, other: Union[float, Iterable[float]]) -> TensorSum:
+        try:
+            return self.__class__(
+                [X * c for X, c in zip(self.tensors, other, strict=True)]
+            )
+        except TypeError:
+            return self.__class__([X * other for X in self.tensors])
 
     def dot(self, other: Tensor, reverse=False) -> float:
         return sum(X.dot(other, reverse) for X in self.tensors)

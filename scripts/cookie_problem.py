@@ -1,0 +1,217 @@
+"""Solve the cookie problem using TT-GMRES. 
+
+The files ``cookies_matrices_2x2.mat`` and ``cookies_matrices_3x3.mat`` can be obtained from the 'examples' folder of the ``htucker`` package.
+https://www.epfl.ch/labs/anchp/index-html/software/htucker/
+"""
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from copy import deepcopy
+from typing import Dict, Generic, List, Optional, Tuple, TypeVar, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import scipy.io
+import scipy.linalg
+from time import perf_counter
+from tqdm import tqdm
+from tt_sketch.sketch import stream_sketch
+from tt_sketch.tensor import TensorSum, TensorTrain
+from tt_sketch.tt_gmres import (
+    TTLinearMap,
+    TTPrecond,
+    TTLinearMapSum,
+)
+from tt_sketch.utils import (
+    TTRank,
+)
+
+
+COOKIES_2x2_FILE = "data/cookies_matrices_2x2.mat"
+COOKIES_3x3_FILE = "data/cookies_matrices_3x3.mat"
+
+
+class CookieMap(TTLinearMap):
+    def __init__(
+        self,
+        A: npt.NDArray,
+        mode: int,
+        shape: Tuple[int, ...],
+        coeffs: npt.NDArray,
+    ) -> None:
+        self.A = A
+        self.mode = mode
+        self.in_shape = shape
+        self.out_shape = shape
+        self.coeffs = coeffs
+
+    def cookie_call(self, other: TensorTrain) -> TensorTrain:
+        new_cores = deepcopy(other.cores)
+        new_cores[0] = np.einsum("ijk,jl->ilk", new_cores[0], self.A)
+        if self.mode != 0:
+            new_cores[self.mode] = np.einsum(
+                "ijk,j->ijk", new_cores[self.mode], self.coeffs
+            )
+        tt = TensorTrain(new_cores)
+        return tt
+
+    __call__ = cookie_call
+
+
+def prepare_cookie_problem(num_coeffs, num_cookies):
+    if num_cookies == 4:
+        cookies_file = COOKIES_2x2_FILE
+    elif num_cookies == 9:
+        cookies_file = COOKIES_3x3_FILE
+    else:
+        raise ValueError("num_cookies must be 4 or 9")
+    cookies_data = scipy.io.loadmat(cookies_file)
+    b = cookies_data["b"].reshape(-1)
+    A_list = cookies_data["A"][0]
+
+    shape = (A_list[0].shape[0],) + (num_coeffs,) * (len(A_list) - 1)
+
+    A_precond_list = []
+    coeffs_list = []
+    for mu, A in enumerate(A_list):
+        A = A.toarray()
+        if mu == 0:
+            coeffs = np.ones(A.shape[0])
+        else:
+            coeffs = np.linspace(0, 10, num_coeffs, dtype=np.float64)
+        A_precond_list.append(A * np.mean(coeffs))
+        coeffs_list.append(coeffs)
+
+    A_precond = np.sum(A_precond_list, axis=0)
+    precond_map = TTPrecond(A_precond, shape, mode=0)
+
+    cookie_maps = []
+
+    for mu, (A, coeffs) in enumerate(zip(A_list, coeffs_list)):
+        cookie_maps.append(
+            CookieMap(
+                A.toarray(),
+                mu,
+                shape,
+                coeffs,
+            )
+        )
+
+    map_sum = TTLinearMapSum(cookie_maps)
+
+    B_cores = [b.reshape(1, -1, 1)]
+    for n in shape[1:]:
+        B_cores.append(np.ones((1, n, 1)))
+    B = TensorTrain(B_cores)
+
+    return map_sum, B, precond_map
+
+# # %%
+# map_sum, B, precond_map = prepare_cookie_problem(10, 4)
+
+# x0 = TensorTrain.zero(shape=map_sum.in_shape, rank=10)
+# max_rank = 20
+# result, history = tt_sum_gmres(
+#     A=map_sum,
+#     b=B,
+#     precond=precond_map,
+#     x0=x0,
+#     max_rank=max_rank,
+#     final_round_rank = 100,
+#     maxiter=50,
+#     tolerance=0,
+#     symmetric=True,
+#     rounding_method="pairwise",
+#     rounding_method_final="pairwise",
+#     save_basis=True,
+#     verbose=True,
+# )
+# # %%
+# np.std(history["step_time"]),np.mean(history["step_time"])
+# # %%
+# true_error = map_sum(result).error(B, relative=True)
+# precond_error = TensorSum([precond_map(t) for t in map_sum(result).tensors]).error(precond_map(B), relative=True)
+# print(f"True error: {true_error:.4e}")
+# print(f"Preconditioned error: {precond_error:.4e}")
+# # %%
+
+# # %%
+# history["final_round_time"], history["total_time"] - history["final_round_time"]
+# # %%
+# sketch_rank = 50
+# tt_sketched = stream_sketch(
+#     x0, left_rank=sketch_rank, right_rank=sketch_rank * 2
+# )
+# errors = []
+# error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+# errors.append(error)
+# for y, nu in zip(history["y"], history["nu_list"]):
+#     tt_sketched += y * nu
+#     error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+#     errors.append(error)
+
+# plt.figure(figsize=(10, 5))
+# svdvals = tt_sketched.to_tt().svdvals()
+# for mu, S in enumerate(svdvals):
+#     plt.plot(S / S[0], label=f"mode={mu}")
+# plt.yscale("log")
+# plt.legend()
+# # %%
+# plt.plot(errors)
+# plt.yscale("log")
+# # %%
+# # %%
+# rounded = tt_sketched.to_tt().round(eps=1e-5)
+# error = map_sum(tt_sketched.to_tt()).error(B_pr, relative=True)
+# error
+# # %%
+# rounded
+# # %%
+# def sum_reduce_tt(
+#     tt_sum: TensorSum[TensorTrain],
+#     eps=1e-8,
+#     max_rank: TTRank = None,
+#     exact: bool = False,
+#     oversample: int = 5,
+# ):
+#     result = tt_sum.tensors[0]
+#     for t in tt_sum.tensors[1:]:
+#         result = result.add(t).round(eps=eps, max_rank=max_rank)
+#     return result
+
+
+# # %%
+# ranks = range(5, 51, 5)
+# errors_sketch = []
+# errors_sum = []
+# timings_sketch = []
+# timings_sum = []
+# for rank in tqdm(ranks):
+#     tt_sum = TensorSum(
+#         [nu * y for nu, y in zip(history["nu_list"], history["y"])]
+#     )
+
+#     current_time = perf_counter()
+#     red_tt = sum_reduce_tt(tt_sum, max_rank=rank)
+#     timings_sum.append(perf_counter() - current_time)
+#     error1 = map_sum(red_tt).error(B_pr, relative=True)
+#     errors_sum.append(error1)
+
+#     current_time = perf_counter()
+#     sketch_tt = stream_sketch(tt_sum, rank, rank * 2).to_tt()
+#     timings_sketch.append(perf_counter() - current_time)
+#     error2 = map_sum(sketch_tt).error(B_pr, relative=True)
+#     errors_sketch.append(error2)
+# # %%
+# plt.plot(ranks, errors_sum, label="sum")
+# plt.plot(ranks, errors_sketch, label="sketch")
+# plt.yscale("log")
+# plt.legend()
+
+# # %%
+# plt.plot(ranks, timings_sum, label="sum")
+# plt.plot(ranks, timings_sketch, label="sketch")
+# plt.legend()
+# # %%
