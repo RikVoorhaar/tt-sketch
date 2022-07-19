@@ -61,6 +61,15 @@ class DRM(ABC):
             seed = hash(uniform())
         seed = mod(seed, 2**32 - 1)
         self.seed = seed  # type: ignore
+    
+    @property
+    def T(self):
+        transposed = deepcopy(self)
+        transposed.transpose = not self.transpose
+        transposed.true_rank = transposed.true_rank[::-1]
+        transposed.rank_min = transposed.rank_min[::-1]
+        transposed.rank_max = transposed.rank_max[::-1]
+        return transposed
 
     @classmethod
     def _from_data(

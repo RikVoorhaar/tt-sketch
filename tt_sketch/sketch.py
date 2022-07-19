@@ -15,7 +15,7 @@ from tt_sketch.drm import (
 )
 from tt_sketch.drm_base import DRM, CanIncreaseRank, CanSlice
 from tt_sketch.sketch_container import SketchContainer
-from tt_sketch.sketch_dispatch import general_sketch
+from tt_sketch.sketch_dispatch import SketchMethod, general_sketch
 from tt_sketch.sketching_methods.abstract_methods import (
     CansketchCP,
     CansketchDense,
@@ -103,7 +103,81 @@ def orthogonal_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=True)
+    sketch = general_sketch(
+        tensor, left_drm, right_drm, method=SketchMethod.orthogonal
+    )
+
+    sketched = TensorTrain(sketch.Psi_cores)
+    if return_drm:  # this really is mostly for testing purposes
+        return sketched, left_drm, right_drm  # type: ignore
+    else:
+        return sketched
+
+def orthogonal_sketch(
+    tensor: Tensor,
+    left_rank: TTRank,
+    right_rank: TTRank,
+    seed: Optional[int] = None,
+    left_drm_type: Optional[Type[DRM]] = None,
+    right_drm_type: Optional[Type[DRM]] = None,
+    left_drm: Optional[DRM] = None,
+    right_drm: Optional[DRM] = None,
+    return_drm: bool = False,
+) -> TensorTrain:
+    """
+    Perform an orthogonal sketch of a tensor
+    """
+    d = len(tensor.shape)
+
+    right_rank_bigger = bool(np.all(np.array(left_rank) < np.array(right_rank)))
+    if not right_rank_bigger:
+        raise ValueError(
+            f"The right rank needs to be larger than the left rank. "
+            f"Left rank: {left_rank}, "
+            f"right rank: {right_rank}"
+        )
+
+    if seed is None:
+        seed = np.mod(hash(np.random.uniform()), 2**32)
+
+    if left_drm is None:
+        if left_drm_type is None:
+            if right_drm_type is not None:
+                left_drm_type = right_drm_type
+            else:
+                left_drm_type = TensorTrainDRM
+        left_rank = process_tt_rank(left_rank, tensor.shape, trim=True)
+        left_drm = left_drm_type(
+            left_rank, transpose=False, shape=tensor.shape, seed=seed
+        )
+    else:
+        if left_drm.rank != left_rank:
+            raise ValueError(
+                f"Left rank {left_rank} does not match the rank of the DRM "
+                f"{left_drm.rank}."
+            )
+
+    if right_drm is None:
+        if right_drm_type is None:
+            if left_drm_type is not None:
+                right_drm_type = left_drm_type
+            else:
+                right_drm_type = TensorTrainDRM
+        right_rank = process_tt_rank(right_rank, tensor.shape, trim=False)
+        right_seed = np.mod(seed + hash(str(d)), 2**32)
+        right_drm = right_drm_type(
+            right_rank, transpose=True, shape=tensor.shape, seed=right_seed
+        )
+    else:
+        if tuple(right_drm.rank[::-1]) != right_rank:
+            raise ValueError(
+                f"Right rank {right_rank} does not match the rank of the DRM "
+                f"{right_drm.rank}."
+            )
+
+    sketch = general_sketch(
+        tensor, left_drm, right_drm, method=SketchMethod.orthogonal
+    )
 
     sketched = TensorTrain(sketch.Psi_cores)
     if return_drm:  # this really is mostly for testing purposes
@@ -179,7 +253,9 @@ def stream_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=False)
+    sketch = general_sketch(
+        tensor, left_drm, right_drm, method=SketchMethod.streaming
+    )
 
     sketched = SketchedTensorTrain(sketch, left_drm, right_drm)
     if return_drm:  # this really is mostly for testing purposes
@@ -345,7 +421,7 @@ def _blocked_stream_sketch_components(
                 tensor,
                 left_sketch_slice,
                 right_sketch_slice,
-                orthogonalize=False,
+                method=SketchMethod.streaming,
             )
             sketch_dict[(i, j)] = sketch_block
 

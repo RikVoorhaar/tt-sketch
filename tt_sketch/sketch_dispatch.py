@@ -2,8 +2,9 @@
 Implements methods for dispatching sketching methods for tensors and DRMs.
 """
 
+import enum
 from functools import partial
-from typing import Callable
+from typing import Callable, Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -156,16 +157,18 @@ def get_sketch_method(tensor: Tensor, drm: DRM) -> Callable:
 
 
 def orth_step(
-    Psi: npt.NDArray[np.float64], Omega: npt.NDArray[np.float64]
+    Psi: npt.NDArray[np.float64], Omega: Optional[npt.NDArray[np.float64]]
 ) -> npt.NDArray[np.float64]:
     """
     Perform the orthogonalization step in the orthogonal sketching algorithm.
     """
     Psi_shape = Psi.shape
+    final_right_rank = Psi_shape[2] if Omega is None else Omega.shape[0]
     Psi_mat = Psi.reshape((Psi_shape[0] * Psi_shape[1], Psi_shape[2]))
-    Psi_mat = right_mul_pinv(Psi_mat, Omega)
+    if Omega is not None:
+        Psi_mat = right_mul_pinv(Psi_mat, Omega)
     Psi_mat, _ = np.linalg.qr(Psi_mat)
-    Psi = Psi_mat.reshape(Psi_shape[0], Psi_shape[1], Omega.shape[0])
+    Psi = Psi_mat.reshape(Psi_shape[0], Psi_shape[1], final_right_rank)
     return Psi
 
 
@@ -188,11 +191,17 @@ class OrthogTTDRM:
         return next(self.generator)
 
 
+class SketchMethod(enum.Enum):
+    streaming = "streaming"
+    orthogonal = "orthogonal"
+    hmt = "hmt"
+
+
 def general_sketch(
     tensor: Tensor,
-    left_drm: DRM,
+    left_drm: Optional[DRM],
     right_drm: DRM,
-    orthogonalize: bool = False,
+    method: SketchMethod,
 ) -> SketchContainer:
     """General algorithm for sketching a tensor.
 
@@ -200,34 +209,42 @@ def general_sketch(
     algorithms."""
     n_dims = len(tensor.shape)
 
-    left_contractions = list(get_sketch_method(tensor, left_drm)(tensor))
+    if method != SketchMethod.hmt:
+        if left_drm is None:
+            raise ValueError(f"left_drm must be provided for method '{method}'")
+        left_contractions = list(get_sketch_method(tensor, left_drm)(tensor))
     right_contractions = list(get_sketch_method(tensor, right_drm)(tensor))
 
+    if left_drm is None:
+        # This is just required for shape information in the case of HMT
+        left_drm = right_drm.T
+
     Psi_cores: ArrayList = []
-    Omega_mats: ArrayList = []
 
     # Compute Omega matrices
-    omega_method = OMEGA_METHODS[type(tensor)]
-    for mu in range(n_dims - 1):
-        omega_shape = (left_drm.rank[mu], right_drm.rank[::-1][mu])
-        Omega_mats.append(
-            omega_method(
-                left_contractions[mu],
-                right_contractions[mu],
-                tensor=tensor,
-                mu=mu,
-                omega_shape=omega_shape,
-            )  # type: ignore
-        )
+    Omega_mats: ArrayList = []
+    if method != SketchMethod.hmt:
+        omega_method = OMEGA_METHODS[type(tensor)]
+        for mu in range(n_dims - 1):
+            omega_shape = (left_drm.rank[mu], right_drm.rank[::-1][mu])
+            Omega_mats.append(
+                omega_method(
+                    left_contractions[mu],
+                    right_contractions[mu],
+                    tensor=tensor,
+                    mu=mu,
+                    omega_shape=omega_shape,
+                )  # type: ignore
+            )
 
-    if orthogonalize:
+    if method in (SketchMethod.hmt, SketchMethod.orthogonal):
         left_psi_drm = OrthogTTDRM(left_drm.rank, tensor)
 
     # Compute Psi cores
     psi_method = PSI_METHODS[type(tensor)]
     for mu in range(n_dims):
         if mu > 0:
-            if orthogonalize:
+            if method in (SketchMethod.hmt, SketchMethod.orthogonal):
                 left_psi_drm.add_core(Psi_cores[-1])
                 left_sketch = next(left_psi_drm)
             else:
@@ -247,7 +264,10 @@ def general_sketch(
         Psi = psi_method(
             left_sketch, right_sketch, tensor=tensor, mu=mu, psi_shape=psi_shape
         )  # type: ignore
-        if orthogonalize and mu < n_dims - 1:
-            Psi = orth_step(Psi, Omega_mats[mu])
+        if mu < n_dims - 1:
+            if method == SketchMethod.orthogonal:
+                Psi = orth_step(Psi, Omega_mats[mu])
+            elif method == SketchMethod.hmt:
+                Psi = orth_step(Psi, None)
         Psi_cores.append(Psi)
     return SketchContainer(Psi_cores, Omega_mats)
