@@ -1,7 +1,7 @@
 import time
 from functools import reduce
 from os.path import isfile
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional, Any
 
 import pandas as pd
 from tt_sketch.sketch import stream_sketch, orthogonal_sketch
@@ -48,14 +48,14 @@ class Experiment:
         return mask.sum() > 0
 
     def do_experiment(
-        self, input, name: str, experiment_func: Callable[..., float], **kwargs
+        self, input, name: str, experiment_func: Callable[..., Dict[str, Any]], **kwargs
     ):
         """Do an experiment, and store results+metadata.
 
         ``input`` should be something tensor-like that ``experiment_func``
         understands.
 
-        ``experiment_func`` has signature ``(input, **kwargs) -> float``.
+        ``experiment_func`` has signature ``(input, **kwargs) -> Dict[str, Any]``.
         """
 
         row = dict()
@@ -77,7 +77,9 @@ class Experiment:
         time_zero = time.perf_counter()
         result = experiment_func(input, **kwargs)
         time_taken = time.perf_counter() - time_zero
-        row["error"] = result
+        for key, value in result.items():
+            row[key] = value
+        # row["error"] = result
         row["time_taken"] = time_taken
 
         row_df = pd.DataFrame([row.values()], columns=row.keys())
@@ -94,7 +96,7 @@ def experiment_stream_sketch(
     right_drm_type=None,
     error_func: Optional[Callable[..., float]] = None,
     **kwargs,
-) -> float:
+) -> Dict[str, Any]:
     tt_sketched = stream_sketch(
         input_tensor,
         left_rank=left_rank,
@@ -106,8 +108,8 @@ def experiment_stream_sketch(
     if error_func is not None:
         error = error_func(input_tensor, tt_sketched)
     else:
-        error = tt_sketched.relative_error(input_tensor)
-    return error
+        error = tt_sketched.error(input_tensor, relative=True)
+    return {"error": error}
 
 
 def experiment_orthogonal_sketch(
@@ -118,7 +120,7 @@ def experiment_orthogonal_sketch(
     right_drm_type=None,
     error_func: Optional[Callable[..., float]] = None,
     **kwargs,
-) -> float:
+) -> Dict[str, Any]:
     tt_sketched = orthogonal_sketch(
         input_tensor,
         left_rank=left_rank,
@@ -130,11 +132,13 @@ def experiment_orthogonal_sketch(
     if error_func is not None:
         error = error_func(input_tensor, tt_sketched)
     else:
-        error = tt_sketched.relative_error(input_tensor)
-    return error
+        error = tt_sketched.error(input_tensor, relative=True)
+    return {"error": error}
 
 
-def experiment_tt_svd(input_tensor: Tensor, rank=None, **kwargs):
+def experiment_tt_svd(
+    input_tensor: Tensor, rank=None, **kwargs
+) -> Dict[str, Any]:
     tt = tt_svd(input_tensor, rank=rank)
-    error = tt.relative_error(input_tensor)
-    return error
+    error = tt.error(input_tensor, relative=True)
+    return {"error": error}

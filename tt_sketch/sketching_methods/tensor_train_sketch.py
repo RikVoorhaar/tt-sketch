@@ -25,5 +25,11 @@ def sketch_psi_tt(
     elif right_sketch is None:
         Psi = np.einsum("ij,jkl->ikl", left_sketch.T, tt_core)
     else:
-        Psi = np.einsum("ij,jkl,lm->ikm", left_sketch.T, tt_core, right_sketch)
+        Psi = np.einsum(
+            "ij,jkl,lm->ikm",
+            left_sketch.T,
+            tt_core,
+            right_sketch,
+            optimize="optimal",
+        )
     return Psi

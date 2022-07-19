@@ -43,6 +43,10 @@ def sketch_psi_dense(
             tensor_ord3.shape[mu + 1],
         )
         Psi = np.einsum(
-            "ij,jkl,ml->ikm", left_sketch, tensor_ord3, right_sketch
+            "ij,jkl,ml->ikm",
+            left_sketch,
+            tensor_ord3,
+            right_sketch,
+            optimize="optimal",
         )
     return Psi

@@ -4,12 +4,24 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import (
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    TypeVar,
+    Generic,
+)
+import warnings
 
 import numpy as np
 import numpy.typing as npt
 
 from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
+
+TType = TypeVar("TType", bound="Tensor")
 
 
 class Tensor(ABC):
@@ -19,7 +31,7 @@ class Tensor(ABC):
     shape: Tuple[int, ...]
 
     @abstractproperty
-    def T(self) -> Tensor:
+    def T(self: TType) -> TType:
         """Transpose of the tensor.
 
         If a tensor has shape (n1,n2,...,nd), then transpose of the tensor
@@ -34,8 +46,23 @@ class Tensor(ABC):
     def to_numpy(self) -> npt.NDArray[np.float64]:
         """Converts the tensor to a (dense) numpy array of same shape."""
 
+    def error(
+        self: TType, other: TType, relative: bool = False, rmse: bool = False
+    ) -> float:
+        """L2 error of the tensor"""
+        self_norm = self.norm()
+        other_norm = other.norm()
+        dot = self.dot(other)
+        error = np.sqrt(np.abs(self_norm**2 - 2 * dot + other_norm**2))
+        if relative:
+            error /= other_norm
+        if rmse:
+            error /= self.size
+        return error
+
     def mse_error(self, other: Union[Tensor, npt.NDArray]) -> float:
         """Computes the MSE error"""
+        warnings.warn("deprecated method", DeprecationWarning)
         if isinstance(other, Tensor):
             other = other.to_numpy()
         square_error = np.linalg.norm(self.to_numpy() - other) ** 2
@@ -43,6 +70,7 @@ class Tensor(ABC):
 
     def relative_error(self, other: Union[Tensor, npt.NDArray]) -> float:
         """Computes the relative error"""
+        warnings.warn("deprecated method", DeprecationWarning)
         if isinstance(other, Tensor):
             other = other.to_numpy()
         error = np.linalg.norm(self.to_numpy() - other)
@@ -71,10 +99,10 @@ class Tensor(ABC):
             return TensorSum([self, other])
 
     @abstractmethod
-    def __mul__(self, other: float) -> Tensor:
+    def __mul__(self: TType, other: float) -> TType:
         """Multiplication by a scalar"""
 
-    def __rmul__(self, other: float) -> Tensor:
+    def __rmul__(self: TType, other: float) -> TType:
         return self.__mul__(other)
 
     def __truediv__(self, other: float):
@@ -82,9 +110,32 @@ class Tensor(ABC):
 
     def __sub__(self, other: Tensor) -> Tensor:
         return self + (-other)
-    
+
     def __neg__(self) -> Tensor:
         return self * -1
+
+    def dot(self: TType, other: TType, reverse=False) -> float:
+        """Dot product of two tensors"""
+        if isinstance(other, TensorSum):
+            return other.dot(self)
+        if not reverse:  # try first to see if other can dot self
+            return other.dot(self, reverse=True)
+        warnings.warn(
+            f"Using fallback method for dot of {type(self)} and {type(other)}.",
+            RuntimeWarning,
+        )
+        print("generic method :(")
+        self_np = self.to_numpy().reshape(-1)
+        other_np = other.to_numpy().reshape(-1)
+        return np.dot(self_np, other_np)
+
+    def norm(self) -> float:
+        """L2 norm of the tensor"""
+        # np.abs because dot can be negative due to numerical errors
+        return np.sqrt(np.abs(self.dot(self)))
+
+    def __matmul__(self: TType, other: TType) -> float:
+        return self.dot(other)
 
 
 class DenseTensor(Tensor):
@@ -381,6 +432,25 @@ class TensorTrain(Tensor):
 
         return self.__class__(new_cores[::-1])
 
+    def svdvals(self) -> List[npt.NDArray]:
+        """Return singular value of each mode"""
+        tt = self.orthogonalize()
+        svdvals = []
+        for mu, C in list(enumerate(tt.cores))[::-1]:
+            if mu < tt.ndim - 1:
+                US = U @ np.diag(S)
+                C = np.einsum("ijk,kl->ijl", C, US)
+
+            if mu > 0:
+                C_mat = C.reshape(C.shape[0], C.shape[1] * C.shape[2])
+            else:
+                C_mat = C.reshape(C.shape[0] * C.shape[1], C.shape[2])
+
+            U, S, Vt = np.linalg.svd(C_mat)
+            svdvals.append(S)
+        svdvals = svdvals[::-1]
+        return svdvals
+
     def __mul__(self, other: float) -> TensorTrain:
         new_cores = deepcopy(self.cores)
         # Absorb number into last core, since if we do orthogonalize, we left
@@ -416,23 +486,22 @@ class TensorTrain(Tensor):
         new_tt = self.__class__(new_cores)
         return new_tt
 
-    def dot(self, other: TensorTrain) -> float:
+    def dot(self, other: Tensor, reverse=False) -> float:
         """
         Compute the dot product of two tensor trains with the same shape.
 
         Result is computed in a left-to-right sweep.
         """
-
-        result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
-        for core1, core2 in zip(self.cores[1:], other.cores[1:]):
-            # optimize is essential here, reduces complexity from r^4*n to r^3*n
-            result = np.einsum(
-                "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
-            )
-        return np.sum(result)
-
-    def norm(self) -> float:
-        return np.sqrt(self.dot(self))
+        if not isinstance(other, TensorTrain):
+            return super().dot(other, reverse=reverse)
+        else:
+            result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
+            for core1, core2 in zip(self.cores[1:], other.cores[1:]):
+                # optimize reduces complexity from r^4*n to r^3*n
+                result = np.einsum(
+                    "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
+                )
+            return np.sum(result)
 
     def orthogonalize(self) -> TensorTrain:
         """Do QR sweep to left-orthogonalize"""
@@ -470,13 +539,13 @@ def diff_tt_sparse(tt: TensorTrain, sparse_tensor: SparseTensor) -> float:
     return norm_squared**0.5
 
 
-class TensorSum(Tensor):
+class TensorSum(Generic[TType], Tensor):
     """Container for sums of tensors"""
 
     shape: Tuple[int, ...]
-    tensors: List[Tensor]
+    tensors: List[TType]
 
-    def __init__(self, tensors: List[Tensor], shape=None) -> None:
+    def __init__(self, tensors: List[TType], shape=None) -> None:
         if shape is None:
             shape = tensors[0].shape
         self.shape = shape
@@ -488,7 +557,7 @@ class TensorSum(Tensor):
 
     @property
     def T(self) -> TensorSum:
-        new_tensors = [X.T for X in self.tensors]
+        new_tensors: List[TType] = [X.T for X in self.tensors]
         return self.__class__(new_tensors)
 
     def to_numpy(self) -> npt.NDArray[np.float64]:
@@ -497,13 +566,13 @@ class TensorSum(Tensor):
             s += X.to_numpy()
         return s
 
-    def __add__(self, other: Tensor) -> TensorSum:
+    def __add__(self, other: TType) -> TensorSum:
         if isinstance(other, TensorSum):
             return self.__class__(self.tensors + other.tensors)
         else:
             return self.__class__(self.tensors + [other])
 
-    def __iadd__(self, other: Tensor) -> TensorSum:
+    def __iadd__(self, other: TType) -> TensorSum:
         if isinstance(other, TensorSum):
             self.tensors.extend(other.tensors)
         else:
@@ -520,8 +589,16 @@ class TensorSum(Tensor):
     def num_summands(self) -> int:
         return len(self.tensors)
 
-    def __mul__(self, other: float) -> TensorSum:
-        return self.__class__([X * other for X in self.tensors])
+    def __mul__(self, other: Union[float, Iterable[float]]) -> TensorSum:
+        try:
+            return self.__class__(
+                [X * c for X, c in zip(self.tensors, other, strict=True)]
+            )
+        except TypeError:
+            return self.__class__([X * other for X in self.tensors])
+
+    def dot(self, other: Tensor, reverse=False) -> float:
+        return sum(X.dot(other, reverse) for X in self.tensors)
 
 
 class CPTensor(Tensor):
@@ -625,7 +702,7 @@ class TuckerTensor(Tensor):
         core_contracted = self.core
         for i, U in enumerate(self.factors):
             left_dim = np.prod(self.shape[:i], dtype=np.int64)
-            right_dim = np.prod(self.rank[i + 1:], dtype=np.int64)
+            right_dim = np.prod(self.rank[i + 1 :], dtype=np.int64)
             core_mat = core_contracted.reshape(
                 left_dim, self.rank[i], right_dim
             )
