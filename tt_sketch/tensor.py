@@ -47,14 +47,29 @@ class Tensor(ABC):
         """Converts the tensor to a (dense) numpy array of same shape."""
 
     def error(
-        self: TType, other: TType, relative: bool = False, rmse: bool = False
+        self: TType,
+        other: TType,
+        relative: bool = False,
+        rmse: bool = False,
+        fast: bool = False,
     ) -> float:
-        """L2 error of the tensor"""
-        self_norm = self.norm()
+        """L2 error of the tensor.
+
+        If ``fast=True``, then error is computed using inner product formula.
+        This is not numerically stable, and gives inaccurate results below
+        relative errors of around 1e-8.
+        """
         other_norm = other.norm()
-        dot = self.dot(other)
-        error = np.sqrt(np.abs(self_norm**2 - 2 * dot + other_norm**2))
+        if fast:
+            self_norm = self.norm()
+            dot = self.dot(other)
+            norm_sum = self_norm**2 + other_norm**2
+            error = np.sqrt(norm_sum) * np.sqrt(np.abs(1 - 2 * dot / norm_sum))
+        else:
+            error = np.linalg.norm(self.to_numpy() - other.to_numpy())
         if relative:
+            if other_norm == 0:
+                return np.inf
             error /= other_norm
         if rmse:
             error /= self.size
@@ -124,7 +139,6 @@ class Tensor(ABC):
             f"Using fallback method for dot of {type(self)} and {type(other)}.",
             RuntimeWarning,
         )
-        print("generic method :(")
         self_np = self.to_numpy().reshape(-1)
         other_np = other.to_numpy().reshape(-1)
         return np.dot(self_np, other_np)

@@ -12,6 +12,7 @@ from experiment_base import (
     experiment_orthogonal_sketch,
     experiment_stream_sketch,
     experiment_tt_svd,
+    experiment_hmt_sketch
 )
 
 n_dims = 5
@@ -58,6 +59,15 @@ for rank, run in tqdm(list(product(ranks, runs)), desc="STTA"):
         run=run,
     )
 
+for rank, run in tqdm(list(product(ranks, runs)), desc="HMT"):
+    experiment.do_experiment(
+        tensor,
+        "HMT",
+        experiment_hmt_sketch,
+        rank=rank,
+        run=run,
+    )
+
 for rank in tqdm(ranks, desc="TT-SVD"):
     experiment.do_experiment(tensor, "TT-SVD", experiment_tt_svd, rank=rank)
 
@@ -81,7 +91,22 @@ plt.errorbar(
     plot_ranks - 0.05,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="OTTS",
+    label="OTTS, TT-DRM",
+    capsize=3,
+    linestyle="",
+)
+
+
+hsketch = df[df["name"] == "HMT"]
+error_gb = hsketch.groupby("rank").error
+errors05 = error_gb.quantile(0.5).values
+errors08 = error_gb.quantile(0.8).values - errors05
+errors02 = errors05 - error_gb.quantile(0.2).values
+plt.errorbar(
+    plot_ranks + 0.05,
+    errors05,
+    yerr=np.stack([errors02, errors08]),
+    label="HMT, TT-DRM",
     capsize=3,
     linestyle="",
 )
@@ -95,11 +120,10 @@ plt.errorbar(
     plot_ranks + 0.05,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="STTA",
+    label="STTA, TT-DRM",
     capsize=3,
     linestyle="",
 )
-
 plt.xticks(ranks)
 plt.ylabel("Relative error")
 plt.xlabel("TT-rank")

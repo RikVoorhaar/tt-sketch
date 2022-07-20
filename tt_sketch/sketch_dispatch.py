@@ -8,6 +8,7 @@ from typing import Callable, Literal, Optional
 
 import numpy as np
 import numpy.typing as npt
+import scipy.linalg
 
 from tt_sketch.drm import TensorTrainDRM
 from tt_sketch.drm_base import DRM
@@ -167,7 +168,8 @@ def orth_step(
     Psi_mat = Psi.reshape((Psi_shape[0] * Psi_shape[1], Psi_shape[2]))
     if Omega is not None:
         Psi_mat = right_mul_pinv(Psi_mat, Omega)
-    Psi_mat, _ = np.linalg.qr(Psi_mat)
+    # Psi_mat, _ = np.linalg.qr(Psi_mat)
+    Psi_mat, _ = scipy.linalg.qr(Psi_mat, mode="economic")
     Psi = Psi_mat.reshape(Psi_shape[0], Psi_shape[1], final_right_rank)
     return Psi
 

@@ -10,10 +10,10 @@ shape = (8, 12, 15, 10)
 big_rank = process_tt_rank(15, shape, trim=True)
 tensor = (
     TensorTrain.random(shape, big_rank)
-    + 1e-4 * TensorTrain.random(shape, 1)
-    + 1e-6 * TensorTrain.random(shape, 1)
+    + 1e-16 * TensorTrain.random(shape, 1)
+    + 1e-20 * TensorTrain.random(shape, 1)
 )
-small_rank_left = process_tt_rank(15, shape, trim=True)
+small_rank_left = process_tt_rank(18, shape, trim=True)
 small_rank_right = tuple(s + 2 for s in small_rank_left)
 
 drm_left = DenseGaussianDRM(small_rank_left, shape, transpose=False)
@@ -28,6 +28,12 @@ tts = TensorTrain(sketch.Psi_cores)
 error_hmt = tts.error(tensor, relative=True)
 print(f"Error HMT: {error_hmt:.3e}")
 
+# %%
+
+drm_right_small.sketching_mats[0].dtype
+A = np.random.normal(size=(10,10))
+np.linalg.qr(A)[0].dtype
+# %%
 method = SketchMethod.orthogonal
 sketch = general_sketch(tensor, drm_left, drm_right, method)
 tts = TensorTrain(sketch.Psi_cores)
@@ -45,6 +51,6 @@ error_orth = orthogonal_sketch(tensor, small_rank_left, small_rank_right).error(
 
 print(f"Error HMT: {error_hmt:.3e}")
 print(f"Error Orth: {error_orth:.3e}")
-print(f"Error HMT/Orth: {(error_hmt+1e-10)/(error_orth+1e-10):.2f}")
+print(f"Error HMT/Orth: {(error_hmt+1e-20)/(error_orth+1e-20):.2f}")
 
 # %%
