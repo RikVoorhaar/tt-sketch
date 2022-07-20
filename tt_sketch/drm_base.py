@@ -69,6 +69,7 @@ class DRM(ABC):
         transposed.true_rank = transposed.true_rank[::-1]
         transposed.rank_min = transposed.rank_min[::-1]
         transposed.rank_max = transposed.rank_max[::-1]
+        transposed.rank = transposed.rank[::-1]
         return transposed
 
     @classmethod

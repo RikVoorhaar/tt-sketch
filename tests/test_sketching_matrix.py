@@ -24,15 +24,18 @@ from tt_sketch.tensor import (
     CPTensor,
     TensorSum,
     DenseTensor,
-    TuckerTensor
+    TuckerTensor,
 )
+from tt_sketch.sketch_dispatch import SketchMethod
 from tt_sketch.sketch import (
     stream_sketch,
     blocked_stream_sketch,
     orthogonal_sketch,
+    hmt_sketch,
 )
 
 DRM_DICT = {drm_type.__name__: drm_type for drm_type in ALL_DRM}
+AVAILABLE_SKETCHING_METHODS = list(SketchMethod.__members__.values())
 
 
 def general_rank_increase(
@@ -174,6 +177,24 @@ def general_blocked_sketch(X_tensor, seed, left_drm_type, right_drm_type):
                 assert np.allclose(Z1, Z2)
 
 
+def general_to_hmt(
+    tensor,
+    left_rank,
+    right_rank,
+    seed=None,
+    left_drm_type=None,
+    right_drm_type=None,
+):
+    return hmt_sketch(tensor, right_rank, seed, right_drm_type)
+
+
+SKETCH_FUNC_DISPATCHER = {
+    SketchMethod.hmt: general_to_hmt,
+    SketchMethod.streaming: stream_sketch,
+    SketchMethod.orthogonal: orthogonal_sketch,
+}
+
+
 def general_exact_recovery(
     X_dense,
     X_tensor,
@@ -182,10 +203,10 @@ def general_exact_recovery(
     seed,
     left_drm_type,
     right_drm_type,
-    orthogonalize=False,
+    sketch_method: SketchMethod,
 ):
-    sketch_method = stream_sketch if not orthogonalize else orthogonal_sketch
-    tt_sketched = sketch_method(
+    sketch_func = SKETCH_FUNC_DISPATCHER[sketch_method]
+    tt_sketched = sketch_func(
         X_tensor,
         left_rank,
         right_rank,
@@ -197,7 +218,7 @@ def general_exact_recovery(
     error = np.linalg.norm(tt_sketched_dense - X_dense)
     assert error < 1e-9
 
-    tt_sketched2 = sketch_method(
+    tt_sketched2 = sketch_func(
         X_tensor,
         left_rank,
         right_rank,
@@ -211,7 +232,7 @@ def general_exact_recovery(
     # machine epsilon
     assert np.allclose(tt_sketched_dense, tt_sketched_dense2)
 
-    tt_sketched3 = sketch_method(
+    tt_sketched3 = sketch_func(
         X_tensor,
         left_rank,
         right_rank,
@@ -239,8 +260,8 @@ assert len(sparse_drm_pairs) > 0
 @pytest.mark.parametrize("drm_types", sparse_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 5])
-@pytest.mark.parametrize("orthogonalize", [True, False])
-def test_exact_recovery_sparse(n_dims, rank, drm_types, orthogonalize):
+@pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
+def test_exact_recovery_sparse(n_dims, rank, drm_types, sketch_method):
     seed = 180
     X_shape = tuple(range(9, 9 + n_dims))
     X_tt = TensorTrain.random(X_shape, rank)
@@ -262,7 +283,7 @@ def test_exact_recovery_sparse(n_dims, rank, drm_types, orthogonalize):
         seed,
         left_drm,
         right_drm,
-        orthogonalize=orthogonalize,
+        sketch_method,
     )
 
     if issubclass(left_drm, CanSlice) and issubclass(right_drm, CanSlice):
@@ -333,8 +354,8 @@ def test_sketch_dense(n_dims):
     assert np.linalg.norm(stt.to_numpy() - tensor.to_numpy()) < 1e-9
 
 
-@pytest.mark.parametrize("orthogonalize", [True, False])
-def test_tensor_sum_parallel(orthogonalize):
+@pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
+def test_tensor_sum_parallel(sketch_method):
     seed = 179
     rank = 4
     n_dims = 4
@@ -365,7 +386,7 @@ def test_tensor_sum_parallel(orthogonalize):
         seed,
         left_drm_type,
         right_drm_type,
-        orthogonalize=orthogonalize,
+        sketch_method,
     )
     general_exact_recovery(
         X1,
@@ -375,7 +396,7 @@ def test_tensor_sum_parallel(orthogonalize):
         seed,
         left_drm_type,
         right_drm_type,
-        orthogonalize=orthogonalize,
+        sketch_method,
     )
     # Sketching is linear, so doing it as (parallel) sum should give same result
     stt1 = stream_sketch(X_sparse_sum16, left_rank, right_rank, seed)
@@ -418,8 +439,8 @@ assert len(tt_drm_pairs) > 0
 @pytest.mark.parametrize("drm_types", tt_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 3])
-@pytest.mark.parametrize("orthogonalize", [True, False])
-def test_exact_recovery_tt(n_dims, rank, drm_types, orthogonalize):
+@pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
+def test_exact_recovery_tt(n_dims, rank, drm_types, sketch_method):
     seed = 180
     X_shape = tuple(range(10, 10 + n_dims))
     X_tt = TensorTrain.random(X_shape, rank, seed=seed)
@@ -439,7 +460,7 @@ def test_exact_recovery_tt(n_dims, rank, drm_types, orthogonalize):
         seed,
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
-        orthogonalize=orthogonalize,
+        sketch_method=sketch_method,
     )
 
     if issubclass(left_drm_type, CanSlice) and issubclass(
@@ -478,8 +499,8 @@ assert len(cp_drm_pairs) > 0
 
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 3])
-@pytest.mark.parametrize("orthogonalize", [True, False])
-def test_exact_recovery_tucker(n_dims, rank,  orthogonalize):
+@pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
+def test_exact_recovery_tucker(n_dims, rank, sketch_method):
     seed = 180
     X_shape = tuple(range(10, 10 + n_dims))
     X_tucker = TuckerTensor.random(X_shape, rank, seed=seed)
@@ -496,14 +517,15 @@ def test_exact_recovery_tucker(n_dims, rank,  orthogonalize):
         seed,
         left_drm_type=TensorTrainDRM,
         right_drm_type=TensorTrainDRM,
-        orthogonalize=orthogonalize,
+        sketch_method=sketch_method,
     )
+
 
 @pytest.mark.parametrize("drm_types", cp_drm_pairs)
 @pytest.mark.parametrize("n_dims", [2, 3])
 @pytest.mark.parametrize("rank", [2, 3])
-@pytest.mark.parametrize("orthogonalize", [True, False])
-def test_exact_recovery_cp(n_dims, rank, drm_types, orthogonalize):
+@pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
+def test_exact_recovery_cp(n_dims, rank, drm_types, sketch_method):
     seed = 180
     X_shape = tuple(range(10, 10 + n_dims))
     X_cp = CPTensor.random(X_shape, rank, seed=seed)
@@ -523,7 +545,7 @@ def test_exact_recovery_cp(n_dims, rank, drm_types, orthogonalize):
         seed,
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
-        orthogonalize=orthogonalize,
+        sketch_method=sketch_method,
     )
 
     if issubclass(left_drm_type, CanSlice) and issubclass(
