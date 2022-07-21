@@ -1,7 +1,9 @@
 # %%
 """
-Simple timings experiment. We compare the time required to sketch a TT of varying rank. The rank of the sketches also vary.
+Simple timings experiment. We compare the time required to sketch a TT of
+varying rank. The rank of the sketches also vary.
 """
+
 import numpy as np
 import pandas as pd
 from experiment_base import (

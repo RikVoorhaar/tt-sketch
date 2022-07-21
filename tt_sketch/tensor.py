@@ -417,12 +417,19 @@ class TensorTrain(Tensor):
         self,
         eps: Optional[float] = None,
         max_rank: Optional[TTRank] = None,
+        orthogonalize: bool = True,
     ) -> TensorTrain:
         """Standard TT-SVD rounding scheme.
 
-        First left orthogonalize in LR sweep, then apply SVD-based rounding in
-        a RL sweep. Leaves the tensor right-orthogonalized."""
-        tt = self.orthogonalize()  # left-orthogonalize
+        First left orthogonalize in LR sweep, then apply SVD-based rounding in a
+        RL sweep. Leaves the tensor right-orthogonalized.
+        
+        If the tensor is already orthogonalized, then pass
+        ``orthogonalize=True`` to avoid unnecessary re-orthogonalization."""
+        if not orthogonalize:
+            tt = self.orthogonalize()  # left-orthogonalize
+        else:
+            tt = self
         if eps is None:
             eps = 0
         if max_rank is None:
