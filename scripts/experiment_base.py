@@ -95,6 +95,7 @@ def experiment_stream_sketch(
     right_rank=None,
     left_drm_type=None,
     right_drm_type=None,
+    error_func=None,
     **kwargs,
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
@@ -107,7 +108,10 @@ def experiment_stream_sketch(
     )
     time_taken = time.perf_counter() - start_time
 
-    error = tt_sketched.error(input_tensor, relative=True)
+    if error_func is not None:
+        error = error_func(tt_sketched, input_tensor)
+    else:
+        error = tt_sketched.error(input_tensor, relative=True)
     return {"error": error, "time_taken": time_taken}
 
 
@@ -117,6 +121,7 @@ def experiment_orthogonal_sketch(
     right_rank=None,
     left_drm_type=None,
     right_drm_type=None,
+    error_func=None,
     **kwargs,
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
@@ -129,17 +134,23 @@ def experiment_orthogonal_sketch(
     )
     time_taken = time.perf_counter() - start_time
 
-    error = tt_sketched.error(input_tensor, relative=True)
+    if error_func is not None:
+        error = error_func(tt_sketched, input_tensor)
+    else:
+        error = tt_sketched.error(input_tensor, relative=True)
     return {"error": error, "time_taken": time_taken}
 
 
 def experiment_hmt_sketch(
-    input_tensor: Tensor, rank=None, drm_type=None, **kwargs
+    input_tensor: Tensor, rank=None, drm_type=None, error_func=None, **kwargs
 ):
     start_time = time.perf_counter()
     tt_sketched = hmt_sketch(input_tensor, rank=rank, drm_type=drm_type)
     time_taken = time.perf_counter() - start_time
-    error = tt_sketched.error(input_tensor, relative=True)
+    if error_func is not None:
+        error = error_func(tt_sketched, input_tensor)
+    else:
+        error = tt_sketched.error(input_tensor, relative=True)
     return {"error": error, "time_taken": time_taken}
 
 

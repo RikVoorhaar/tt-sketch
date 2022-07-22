@@ -15,24 +15,25 @@ from experiment_base import (
 )
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from tt_sketch.sketch import stream_sketch, orthogonal_sketch, hmt_sketch
+from tt_sketch.sketch import SketchedTensorTrain, stream_sketch, orthogonal_sketch, hmt_sketch
 from itertools import product
 
 from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings.csv"
 
-sketch_ranks = range(1, 82, 5)
-runs = range(10)
-shape = (100,) * 3
+runs = range(50)
+shape = (50,) * 10
 experiment = Experiment(csv_filename)
-tt_rank = 50
-tensors = [tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED+i) for i in runs]
+tt_rank = 200
+sketch_ranks = range(1, tt_rank, 10)
 SEED = 179
 
 
 def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
-    tensor = TensorTrain.random(shape, rank=tt_rank, orthog=True, seed=seed)
+    tensor = TensorTrain.random(
+        shape, rank=tt_rank, orthog=True, trim=True, seed=seed
+    )
     for i, C in enumerate(tensor.cores):
         C_shape = C.shape
         left_mat_shape = (C_shape[0] * C.shape[1], C_shape[2])
@@ -48,6 +49,16 @@ def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
         tensor.cores[i] = C
     return tensor
 
+def tt_error_func(tt1,tt2):
+    if isinstance(tt1,SketchedTensorTrain):
+        tt1 = tt1.to_tt()
+    tt2_norm = tt2.norm()
+    if tt2_norm == 0:
+        return np.inf
+    error = tt1.add(-tt2).norm() / tt2_norm
+    return error
+
+tensors = [tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED + i) for i in runs]
 
 # %%
 # for tt_rank, sketch_rank, run in tqdm(
@@ -67,9 +78,7 @@ def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
 #     )
 
 
-for run, sketch_rank in tqdm(
-    list(product(runs, sketch_ranks)), desc="STTAx2"
-):
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTAx2"):
     # tensor = TensorTrain.random(shape, rank=tt_rank)
     # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
     tensor = tensors[run]
@@ -82,11 +91,10 @@ for run, sketch_rank in tqdm(
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
+        error_func = tt_error_func,
     )
 
-for run, sketch_rank in tqdm(
-    list(product(runs, sketch_ranks)), desc="STTA+3"
-):
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTA+3"):
     # tensor = TensorTrain.random(shape, rank=tt_rank)
     # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
     tensor = tensors[run]
@@ -99,10 +107,9 @@ for run, sketch_rank in tqdm(
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
+        error_func = tt_error_func,
     )
-for run, sketch_rank in tqdm(
-    list(product(runs, sketch_ranks)), desc="HMT"
-):
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
     # tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
     # tensor = tt_exp_decay(shape, tt_rank)
     tensor = tensors[run]
@@ -114,6 +121,7 @@ for run, sketch_rank in tqdm(
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
+        error_func = tt_error_func,
     )
 
 # for tt_rank, sketch_rank, run in tqdm(
@@ -133,6 +141,7 @@ for run, sketch_rank in tqdm(
 # %%
 
 df = pd.read_csv(csv_filename)
+
 
 def make_percentile_function(percentile):
     def f(x):
@@ -162,9 +171,7 @@ timing_df = (
 timing_df.name.unique()
 # %%
 for label in ("HMT", "STTA+3", "STTAx2"):
-    sub_df = timing_df[
-        (timing_df.name == label) 
-    ]
+    sub_df = timing_df[(timing_df.name == label)]
 
     plt.errorbar(
         sub_df.time50,
@@ -189,9 +196,7 @@ plt.xscale("log")
 
 # %%
 for label in ("HMT", "STTA+3", "STTAx2"):
-    sub_df = timing_df[
-        (timing_df.name == label) 
-    ]
+    sub_df = timing_df[(timing_df.name == label)]
 
     plt.errorbar(
         sub_df.sketch_rank,

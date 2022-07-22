@@ -320,6 +320,7 @@ class TensorTrain(Tensor):
         rank: TTRank,
         seed: Optional[int] = None,
         orthog: bool = False,
+        trim: bool = False,
     ) -> TensorTrain:
         """
         Generate random orthogonal tensor train cores
@@ -328,13 +329,20 @@ class TensorTrain(Tensor):
         mean and variance ``1 / r1 * n * r2``, so that expected Frobenius norm
         is 1.
 
+        If ``trim=True``, the ranks are trimmed; i.e. we enforce that r1*n>=r2
+        and r2*n>=r1.
+
         If ``orthog`` is set to ``True``, all cores except the last are
-        left-orthogonalized.
+        left-orthogonalized. Trim must be enabled in this case.
         """
         if seed is not None:
             np.random.seed(seed)
         d = len(shape)
-        rank = process_tt_rank(rank, shape, trim=False)
+        if orthog and not trim:
+            raise ValueError(
+                "Trimming must be enabled if orthogonalization is enabled."
+            )
+        rank = process_tt_rank(rank, shape, trim=trim)
         rank_augmented = (1,) + tuple(rank) + (1,)
         cores = []
         for i in range(d):
@@ -413,6 +421,11 @@ class TensorTrain(Tensor):
             result = next_step
         return result.reshape(-1)
 
+    def norm(self) -> float:
+        self_orth = self.orthogonalize()
+        return np.linalg.norm(self_orth.cores[-1])
+
+
     def round(
         self,
         eps: Optional[float] = None,
@@ -423,7 +436,7 @@ class TensorTrain(Tensor):
 
         First left orthogonalize in LR sweep, then apply SVD-based rounding in a
         RL sweep. Leaves the tensor right-orthogonalized.
-        
+
         If the tensor is already orthogonalized, then pass
         ``orthogonalize=True`` to avoid unnecessary re-orthogonalization."""
         if not orthogonalize:
