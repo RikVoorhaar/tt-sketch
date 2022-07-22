@@ -22,11 +22,12 @@ from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings.csv"
 
-sketch_ranks = range(1, 102, 5)
-runs = range(20)
-shape = (100,) * 4
+sketch_ranks = range(1, 82, 5)
+runs = range(10)
+shape = (100,) * 3
 experiment = Experiment(csv_filename)
-tt_ranks = [110]
+tt_rank = 50
+tensors = [tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED+i) for i in runs]
 SEED = 179
 
 
@@ -66,11 +67,12 @@ def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
 #     )
 
 
-for run, tt_rank, sketch_rank in tqdm(
-    list(product(runs, tt_ranks, sketch_ranks)), desc="STTAx2"
+for run, sketch_rank in tqdm(
+    list(product(runs, sketch_ranks)), desc="STTAx2"
 ):
     # tensor = TensorTrain.random(shape, rank=tt_rank)
-    tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
     experiment.do_experiment(
         tensor,
         "STTAx2",
@@ -82,11 +84,12 @@ for run, tt_rank, sketch_rank in tqdm(
         run=run,
     )
 
-for run, tt_rank, sketch_rank in tqdm(
-    list(product(runs, tt_ranks, sketch_ranks)), desc="STTA+3"
+for run, sketch_rank in tqdm(
+    list(product(runs, sketch_ranks)), desc="STTA+3"
 ):
     # tensor = TensorTrain.random(shape, rank=tt_rank)
-    tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
     experiment.do_experiment(
         tensor,
         "STTA+3",
@@ -97,11 +100,12 @@ for run, tt_rank, sketch_rank in tqdm(
         sketch_rank=sketch_rank,
         run=run,
     )
-for run, tt_rank, sketch_rank in tqdm(
-    list(product(runs, tt_ranks, sketch_ranks)), desc="HMT"
+for run, sketch_rank in tqdm(
+    list(product(runs, sketch_ranks)), desc="HMT"
 ):
-    tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
-    tensor = tt_exp_decay(shape, tt_rank)
+    # tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
+    # tensor = tt_exp_decay(shape, tt_rank)
+    tensor = tensors[run]
     experiment.do_experiment(
         tensor,
         "HMT",
@@ -155,11 +159,11 @@ timing_df = (
     )
     .reset_index()
 )
-
+timing_df.name.unique()
 # %%
-for label in ("HMT", "STTA", "OTTS"):
+for label in ("HMT", "STTA+3", "STTAx2"):
     sub_df = timing_df[
-        (timing_df.name == label) & (timing_df.tensor_rank == 50)
+        (timing_df.name == label) 
     ]
 
     plt.errorbar(
@@ -176,17 +180,17 @@ for label in ("HMT", "STTA", "OTTS"):
         linestyle="",
     )
 
-plt.xlabel("error")
-plt.ylabel("time taken (s)")
+plt.ylabel("error")
+plt.xlabel("time taken (s)")
 plt.legend()
 plt.yscale("log")
 plt.xscale("log")
 
 
 # %%
-for label in ("HMT", "STTA", "OTTS"):
+for label in ("HMT", "STTA+3", "STTAx2"):
     sub_df = timing_df[
-        (timing_df.name == label) & (timing_df.tensor_rank == 50)
+        (timing_df.name == label) 
     ]
 
     plt.errorbar(
