@@ -89,30 +89,31 @@ df = pd.read_csv(csv_filename)
 plt.figure(figsize=(10, 4))
 ttsvd = df[df["name"] == "TT-SVD"]
 
-rsketch = df[df["name"] == "OTTS"]
-plot_ranks = rsketch["left_rank"].unique()
-plt.plot(plot_ranks, ttsvd.error.values, "-", label="TT-SVD")
+# rsketch = df[df["name"] == "OTTS"]
 
-error_gb = rsketch.groupby(rsketch["left_rank"]).error
-errors05 = error_gb.quantile(0.5).values
-errors08 = error_gb.quantile(0.8).values - errors05
-errors02 = errors05 - error_gb.quantile(0.2).values
-plt.errorbar(
-    plot_ranks - 0.05,
-    errors05,
-    yerr=np.stack([errors02, errors08]),
-    label="OTTS, TT-DRM",
-    capsize=3,
-    linestyle="",
-)
+# error_gb = rsketch.groupby(rsketch["left_rank"]).error
+# errors05 = error_gb.quantile(0.5).values
+# errors08 = error_gb.quantile(0.8).values - errors05
+# errors02 = errors05 - error_gb.quantile(0.2).values
+# plt.errorbar(
+#     plot_ranks - 0.05,
+#     errors05,
+#     yerr=np.stack([errors02, errors08]),
+#     label="OTTS, TT-DRM",
+#     capsize=3,
+#     linestyle="",
+# )
+plt.axhline(error_just_tt, label="baseline", linestyle="--", color="k", alpha=0.7)
 
 ssketch = df[df["name"] == "HMT"]
+plot_ranks = ssketch["rank"].unique()
+plt.plot(plot_ranks, ttsvd.error.values, "-o", label="TT-SVD",ms=3)
 error_gb = ssketch.groupby("rank").error
 errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks + 0.05,
+    plot_ranks - 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
     label="HMT, TT-DRM",
@@ -126,7 +127,7 @@ errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks + 0.05,
+    plot_ranks + 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
     label="STTA, TT-DRM",
@@ -134,7 +135,6 @@ plt.errorbar(
     linestyle="",
 )
 
-plt.axhline(error_just_tt, label="baseline", linestyle="--", color="k")
 
 plt.xticks(ranks)
 plt.ylabel("Relative error")

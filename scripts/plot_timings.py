@@ -22,35 +22,58 @@ from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings.csv"
 
-sketch_ranks = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
-tt_ranks = [50]
-runs = range(5)
-shape = (50,) * 4
+sketch_ranks = range(1, 102, 5)
+runs = range(20)
+shape = (100,) * 4
 experiment = Experiment(csv_filename)
+tt_ranks = [110]
+SEED = 179
 
-for tt_rank, sketch_rank, run in tqdm(
-    list(product(tt_ranks, sketch_ranks, runs)), desc="OTTS"
+
+def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
+    tensor = TensorTrain.random(shape, rank=tt_rank, orthog=True, seed=seed)
+    for i, C in enumerate(tensor.cores):
+        C_shape = C.shape
+        left_mat_shape = (C_shape[0] * C.shape[1], C_shape[2])
+        right_mat_shape = (C_shape[0], C_shape[1] * C.shape[2])
+        if min(left_mat_shape) > min(right_mat_shape):
+            mat_shape = left_mat_shape
+        else:
+            mat_shape = right_mat_shape
+        C = C.reshape(mat_shape)
+        U, S, Vt = np.linalg.svd(C, full_matrices=False)
+        S *= np.logspace(0, min_svdval, len(S))
+        C = (U @ np.diag(S) @ Vt).reshape(C_shape)
+        tensor.cores[i] = C
+    return tensor
+
+
+# %%
+# for tt_rank, sketch_rank, run in tqdm(
+#     list(product(tt_ranks, sketch_ranks, runs)), desc="OTTS"
+# ):
+#     # tensor = TensorTrain.random(shape, rank=tt_rank)
+#     tensor = tt_exp_decay(shape, tt_rank, seed=SEED+run)
+#     experiment.do_experiment(
+#         tensor,
+#         "OTTS",
+#         experiment_orthogonal_sketch,
+#         left_rank=sketch_rank,
+#         right_rank=sketch_rank * 2,
+#         tensor_rank=tt_rank,
+#         sketch_rank=sketch_rank,
+#         run=run,
+#     )
+
+
+for run, tt_rank, sketch_rank in tqdm(
+    list(product(runs, tt_ranks, sketch_ranks)), desc="STTAx2"
 ):
-    tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
     experiment.do_experiment(
         tensor,
-        "OTTS",
-        experiment_orthogonal_sketch,
-        left_rank=sketch_rank,
-        right_rank=sketch_rank * 2,
-        tensor_rank=tt_rank,
-        sketch_rank=sketch_rank,
-        run=run,
-    )
-
-
-for tt_rank, sketch_rank, run in tqdm(
-    list(product(tt_ranks, sketch_ranks, runs)), desc="STTA"
-):
-    tensor = TensorTrain.random(shape, rank=tt_rank)
-    experiment.do_experiment(
-        tensor,
-        "STTA",
+        "STTAx2",
         experiment_stream_sketch,
         left_rank=sketch_rank,
         right_rank=sketch_rank * 2,
@@ -59,10 +82,26 @@ for tt_rank, sketch_rank, run in tqdm(
         run=run,
     )
 
-for tt_rank, sketch_rank, run in tqdm(
-    list(product(tt_ranks, sketch_ranks, runs)), desc="HMT"
+for run, tt_rank, sketch_rank in tqdm(
+    list(product(runs, tt_ranks, sketch_ranks)), desc="STTA+3"
 ):
-    tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    experiment.do_experiment(
+        tensor,
+        "STTA+3",
+        experiment_stream_sketch,
+        left_rank=sketch_rank,
+        right_rank=sketch_rank + 3,
+        tensor_rank=tt_rank,
+        sketch_rank=sketch_rank,
+        run=run,
+    )
+for run, tt_rank, sketch_rank in tqdm(
+    list(product(runs, tt_ranks, sketch_ranks)), desc="HMT"
+):
+    tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
+    tensor = tt_exp_decay(shape, tt_rank)
     experiment.do_experiment(
         tensor,
         "HMT",
@@ -73,39 +112,96 @@ for tt_rank, sketch_rank, run in tqdm(
         run=run,
     )
 
-for tt_rank, sketch_rank,run in tqdm(
-    list(product(tt_ranks, sketch_ranks, runs)), desc="TT-SVD"
-):
-    tensor = TensorTrain.random(shape, rank=tt_rank)
-    experiment.do_experiment(
-        tensor,
-        "TT-SVD",
-        experiment_tt_svd,
-        rank=sketch_rank,
-        tensor_rank=tt_rank,
-        sketch_rank=sketch_rank,
-        run=run,
-    )
+# for tt_rank, sketch_rank, run in tqdm(
+#     list(product(tt_ranks, sketch_ranks, runs)), desc="TT-SVD"
+# ):
+#     tensor = TensorTrain.random(shape, rank=tt_rank)
+#     experiment.do_experiment(
+#         tensor,
+#         "TT-SVD",
+#         experiment_tt_svd,
+#         rank=sketch_rank,
+#         tensor_rank=tt_rank,
+#         sketch_rank=sketch_rank,
+#         run=run,
+#     )
 
 # %%
 
 df = pd.read_csv(csv_filename)
 
-timing_df = df.groupby(["name", "sketch_rank", "tensor_rank"]).time_taken.median().reset_index()
+def make_percentile_function(percentile):
+    def f(x):
+        return np.percentile(x, percentile)
 
-sub_df = timing_df[(timing_df.name == "HMT") & (timing_df.tensor_rank==50)]
-plt.plot(sub_df.sketch_rank, sub_df.time_taken, label="HMT")
+    return f
 
-sub_df = timing_df[(timing_df.name == "OTTS") & (timing_df.tensor_rank==50)]
-plt.plot(sub_df.sketch_rank, sub_df.time_taken, label="OTTS")
 
-sub_df = timing_df[(timing_df.name == "STTA") & (timing_df.tensor_rank==50)]
-plt.plot(sub_df.sketch_rank, sub_df.time_taken, label="STTA")
+percentile80 = make_percentile_function(80)
+percentile20 = make_percentile_function(20)
 
-sub_df = timing_df[(timing_df.name == "TT-SVD") & (timing_df.tensor_rank==50)]
-plt.plot(sub_df.sketch_rank, sub_df.time_taken, label="TT-SVD")
+timing_df = (
+    df.groupby(["name", "sketch_rank", "tensor_rank"])[["time_taken", "error"]]
+    .agg(
+        min_time=("time_taken", "min"),
+        time50=("time_taken", "median"),
+        std_time=("time_taken", "std"),
+        error50=("error", "median"),
+        std_error=("error", "std"),
+        time20=("time_taken", percentile20),
+        time80=("time_taken", percentile80),
+        error80=("error", percentile80),
+        error20=("error", percentile20),
+    )
+    .reset_index()
+)
 
-plt.xlabel("sketch_rank")
+# %%
+for label in ("HMT", "STTA", "OTTS"):
+    sub_df = timing_df[
+        (timing_df.name == label) & (timing_df.tensor_rank == 50)
+    ]
+
+    plt.errorbar(
+        sub_df.time50,
+        sub_df.error50,
+        xerr=np.stack(
+            [sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50]
+        ),
+        yerr=np.stack(
+            [sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50]
+        ),
+        capsize=3,
+        label=label,
+        linestyle="",
+    )
+
+plt.xlabel("error")
 plt.ylabel("time taken (s)")
 plt.legend()
-plt.yscale('log')
+plt.yscale("log")
+plt.xscale("log")
+
+
+# %%
+for label in ("HMT", "STTA", "OTTS"):
+    sub_df = timing_df[
+        (timing_df.name == label) & (timing_df.tensor_rank == 50)
+    ]
+
+    plt.errorbar(
+        sub_df.sketch_rank,
+        sub_df.time50,
+        yerr=np.stack(
+            [sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50]
+        ),
+        capsize=3,
+        label=label,
+        linestyle="",
+    )
+
+plt.xlabel("Sketch rank")
+plt.ylabel("time taken (s)")
+plt.legend()
+plt.yscale("log")
+# %%
