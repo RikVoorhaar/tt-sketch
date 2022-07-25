@@ -15,7 +15,12 @@ from experiment_base import (
 )
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from tt_sketch.sketch import SketchedTensorTrain, stream_sketch, orthogonal_sketch, hmt_sketch
+from tt_sketch.sketch import (
+    SketchedTensorTrain,
+    stream_sketch,
+    orthogonal_sketch,
+    hmt_sketch,
+)
 from itertools import product
 
 from tt_sketch.tensor import TensorTrain
@@ -49,14 +54,16 @@ def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
         tensor.cores[i] = C
     return tensor
 
-def tt_error_func(tt1,tt2):
-    if isinstance(tt1,SketchedTensorTrain):
+
+def tt_error_func(tt1, tt2):
+    if isinstance(tt1, SketchedTensorTrain):
         tt1 = tt1.to_tt()
     tt2_norm = tt2.norm()
     if tt2_norm == 0:
         return np.inf
     error = tt1.add(-tt2).norm() / tt2_norm
     return error
+
 
 tensors = []
 for i in tqdm(runs, desc="creating target tensors"):
@@ -94,7 +101,7 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTAx2"):
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
-        error_func = tt_error_func,
+        error_func=tt_error_func,
     )
 
 for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTA+3"):
@@ -110,7 +117,7 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTA+3"):
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
-        error_func = tt_error_func,
+        error_func=tt_error_func,
     )
 for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
     # tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
@@ -124,7 +131,7 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
         tensor_rank=tt_rank,
         sketch_rank=sketch_rank,
         run=run,
-        error_func = tt_error_func,
+        error_func=tt_error_func,
     )
 
 # for tt_rank, sketch_rank, run in tqdm(
@@ -176,18 +183,16 @@ timing_df.name.unique()
 for label in ("HMT", "STTA+3", "STTAx2"):
     sub_df = timing_df[(timing_df.name == label)]
 
-    plt.errorbar(
+    plt.plot(
         sub_df.time50,
         sub_df.error50,
-        xerr=np.stack(
-            [sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50]
-        ),
-        yerr=np.stack(
-            [sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50]
-        ),
-        capsize=3,
+        # xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
+        # yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
+        # capsize=3,
+        "-o",
+        ms=3,
         label=label,
-        linestyle="",
+        # linestyle="",
     )
 
 plt.ylabel("Relative error")
@@ -202,15 +207,15 @@ plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 for label in ("HMT", "STTA+3", "STTAx2"):
     sub_df = timing_df[(timing_df.name == label)]
 
-    plt.errorbar(
+    plt.plot(
         sub_df.sketch_rank,
         sub_df.time50,
-        yerr=np.stack(
-            [sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50]
-        ),
-        capsize=3,
+        # yerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
+        # capsize=3,
+        "-o",
         label=label,
-        linestyle="",
+        ms=3
+        # linestyle="",
     )
 
 plt.xlabel("TT-rank of sketch")

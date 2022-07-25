@@ -96,6 +96,7 @@ def experiment_stream_sketch(
     left_drm_type=None,
     right_drm_type=None,
     error_func=None,
+    recompression_rank=None,
     **kwargs,
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
@@ -106,6 +107,9 @@ def experiment_stream_sketch(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.to_tt().round(max_rank=recompression_rank)
+        assert max(tt_sketched.rank) <= recompression_rank
     time_taken = time.perf_counter() - start_time
 
     if error_func is not None:
@@ -122,6 +126,7 @@ def experiment_orthogonal_sketch(
     left_drm_type=None,
     right_drm_type=None,
     error_func=None,
+    recompression_rank=None,
     **kwargs,
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
@@ -132,6 +137,8 @@ def experiment_orthogonal_sketch(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.round(max_rank=recompression_rank)
     time_taken = time.perf_counter() - start_time
 
     if error_func is not None:
@@ -142,10 +149,17 @@ def experiment_orthogonal_sketch(
 
 
 def experiment_hmt_sketch(
-    input_tensor: Tensor, rank=None, drm_type=None, error_func=None, **kwargs
+    input_tensor: Tensor,
+    rank=None,
+    drm_type=None,
+    error_func=None,
+    recompression_rank=None,
+    **kwargs,
 ):
     start_time = time.perf_counter()
     tt_sketched = hmt_sketch(input_tensor, rank=rank, drm_type=drm_type)
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.round(max_rank=recompression_rank)
     time_taken = time.perf_counter() - start_time
     if error_func is not None:
         error = error_func(tt_sketched, input_tensor)
