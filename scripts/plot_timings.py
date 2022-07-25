@@ -119,6 +119,39 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTA+3"):
         run=run,
         error_func=tt_error_func,
     )
+
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTS+3"):
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
+    experiment.do_experiment(
+        tensor,
+        "OTTS+3",
+        experiment_orthogonal_sketch,
+        left_rank=sketch_rank,
+        right_rank=sketch_rank + 3,
+        tensor_rank=tt_rank,
+        sketch_rank=sketch_rank,
+        run=run,
+        error_func=tt_error_func,
+    )
+
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTSx2"):
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
+    experiment.do_experiment(
+        tensor,
+        "OTTSx2",
+        experiment_orthogonal_sketch,
+        left_rank=sketch_rank,
+        right_rank=sketch_rank * 2,
+        tensor_rank=tt_rank,
+        sketch_rank=sketch_rank,
+        run=run,
+        error_func=tt_error_func,
+    )
+
 for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
     # tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
     # tensor = tt_exp_decay(shape, tt_rank)
@@ -180,7 +213,7 @@ timing_df = (
 )
 timing_df.name.unique()
 # %%
-for label in ("HMT", "STTA+3", "STTAx2"):
+for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
@@ -204,7 +237,7 @@ plt.title("Error vs. time taken")
 plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 
 # %%
-for label in ("HMT", "STTA+3", "STTAx2"):
+for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
