@@ -22,7 +22,7 @@ from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings.csv"
 
-runs = range(50)
+runs = list(range(20))
 shape = (50,) * 10
 experiment = Experiment(csv_filename)
 tt_rank = 200
@@ -58,7 +58,10 @@ def tt_error_func(tt1,tt2):
     error = tt1.add(-tt2).norm() / tt2_norm
     return error
 
-tensors = [tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED + i) for i in runs]
+tensors = []
+for i in tqdm(runs, desc="creating target tensors"):
+    tensor = tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED + i)
+    tensors.append(tensor)
 
 # %%
 # for tt_rank, sketch_rank, run in tqdm(
@@ -187,12 +190,13 @@ for label in ("HMT", "STTA+3", "STTAx2"):
         linestyle="",
     )
 
-plt.ylabel("error")
-plt.xlabel("time taken (s)")
+plt.ylabel("Relative error")
+plt.xlabel("Time taken (s)")
 plt.legend()
 plt.yscale("log")
-plt.xscale("log")
-
+# plt.xscale("log")
+plt.title("Error vs. time taken")
+plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 
 # %%
 for label in ("HMT", "STTA+3", "STTAx2"):
@@ -209,8 +213,10 @@ for label in ("HMT", "STTA+3", "STTAx2"):
         linestyle="",
     )
 
-plt.xlabel("Sketch rank")
-plt.ylabel("time taken (s)")
+plt.xlabel("TT-rank of sketch")
+plt.ylabel("Time taken (s)")
 plt.legend()
 plt.yscale("log")
+plt.title("Time taken vs. sketch rank")
+plt.savefig("results/timings2.pdf", transparent=True, bbox_inches="tight")
 # %%
