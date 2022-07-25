@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Tuple, Union
 
 import numpy as np
+from numpy.random import SeedSequence
 from tt_sketch.drm_base import CanIncreaseRank, handle_transpose
 from tt_sketch.sketching_methods.abstract_methods import (
     CansketchDense,
@@ -10,7 +11,7 @@ from tt_sketch.sketching_methods.abstract_methods import (
     CansketchTT,
 )
 from tt_sketch.tensor import DenseTensor, SparseTensor, TensorTrain
-from tt_sketch.utils import ArrayGenerator, ArrayList
+from tt_sketch.utils import ArrayGenerator, ArrayList, random_normal
 
 
 class DenseGaussianDRM(
@@ -37,13 +38,20 @@ class DenseGaussianDRM(
         shape_sketch = self.shape
         if transpose:
             shape_sketch = shape_sketch[::-1]
-        for i, (r, n) in enumerate(zip(self.true_rank, shape_sketch[:-1])):
+
+        # seq = SeedSequence(self.seed)
+        # seeds = seq.generate_state(len(self.true_rank))
+        for i, (r, n) in enumerate(
+            zip(self.true_rank, shape_sketch[:-1])
+        ):
             dim_prod *= n
 
+            # TODO: make this correctly work with rank_increase and random_normal
             np.random.seed(seed)
             seed_offset = hash(np.random.uniform(0, dim_prod))
             np.random.seed(np.mod(self.seed + seed_offset, 2**32 - 1))
 
+            # sketching_mat = random_normal(shape=(r, dim_prod), seed=seed)
             sketching_mat = np.random.normal(size=(r, dim_prod))
             sketching_mat = sketching_mat[self.rank_min[i] : self.rank_max[i]]
             self.sketching_mats.append(sketching_mat)

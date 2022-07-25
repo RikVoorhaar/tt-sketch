@@ -17,9 +17,10 @@ from typing import (
 import warnings
 
 import numpy as np
+from numpy.random import SeedSequence
 import numpy.typing as npt
 
-from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
+from tt_sketch.utils import ArrayList, TTRank, process_tt_rank, random_normal
 
 TType = TypeVar("TType", bound="Tensor")
 
@@ -277,7 +278,7 @@ class SparseTensor(Tensor):
         total_size = np.prod(shape)
         indices_flat = np.random.choice(total_size, size=nnz, replace=False)
         indices = np.unravel_index(indices_flat, shape)
-        entries = np.random.normal(size=nnz)
+        entries = random_normal(shape=(nnz,), seed=seed)
         return cls(shape, indices, entries)
 
     def __mul__(self, other: float) -> SparseTensor:
@@ -335,8 +336,7 @@ class TensorTrain(Tensor):
         If ``orthog`` is set to ``True``, all cores except the last are
         left-orthogonalized. Trim must be enabled in this case.
         """
-        if seed is not None:
-            np.random.seed(seed)
+
         d = len(shape)
         if orthog and not trim:
             raise ValueError(
@@ -344,12 +344,16 @@ class TensorTrain(Tensor):
             )
         rank = process_tt_rank(rank, shape, trim=trim)
         rank_augmented = (1,) + tuple(rank) + (1,)
+
         cores = []
+        seq = SeedSequence(seed)
+        seeds = seq.generate_state(d)
         for i in range(d):
             r1 = rank_augmented[i]
             r2 = rank_augmented[i + 1]
             n = shape[i]
-            core = np.random.normal(size=(r1 * n, r2))
+            core = random_normal(shape=(r1 * n, r2), seed=seeds[i])
+
             if orthog and i < d - 1:
                 core, _ = np.linalg.qr(core, mode="reduced")
             else:
@@ -424,7 +428,6 @@ class TensorTrain(Tensor):
     def norm(self) -> float:
         self_orth = self.orthogonalize()
         return np.linalg.norm(self_orth.cores[-1])
-
 
     def round(
         self,
@@ -672,12 +675,12 @@ class CPTensor(Tensor):
     def random(
         cls, shape: Tuple[int, ...], rank: int, seed: Optional[int] = None
     ) -> CPTensor:
-        if seed is not None:
-            np.random.seed(seed)
         d = len(shape)
+        seq = SeedSequence(seed)
+        seeds = seq.generate_state(d)
         cores = []
         for i in range(d):
-            core = np.random.normal(size=(shape[i], rank))
+            core = random_normal(shape=(shape[i], rank), seed=seeds[i])
             core /= np.sqrt(shape[i])
             cores.append(core)
 
@@ -762,8 +765,6 @@ class TuckerTensor(Tensor):
         rank: Union[int, Tuple[int, ...]],
         seed: Optional[int] = None,
     ) -> TuckerTensor:
-        if seed is not None:
-            np.random.seed(seed)
         d = len(shape)
         try:
             rank_tuple = tuple(rank)  # type: ignore
@@ -771,10 +772,13 @@ class TuckerTensor(Tensor):
             rank_tuple = (rank,) * d  # type: ignore
         rank_tuple = tuple(min(r1, r2) for r1, r2 in zip(rank_tuple, shape))
 
-        core = np.random.normal(size=rank_tuple)
+        seq = SeedSequence(seed)
+        core_seed = seq.generate_state(1)[0]
+        core = random_normal(shape=rank_tuple, seed=core_seed)
         factors = []
-        for r, n in zip(rank_tuple, shape):
-            U = np.random.normal(size=(r, n))
+        seeds = seq.generate_state(d)
+        for r, n, seed in zip(rank_tuple, shape, seeds):
+            U = random_normal(shape=(r, n), seed=seed)
             U = np.linalg.qr(U.T)[0].T
             factors.append(U)
 
