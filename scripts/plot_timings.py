@@ -25,13 +25,13 @@ from itertools import product
 
 from tt_sketch.tensor import TensorTrain
 
-csv_filename = "results/timings200.csv"
+csv_filename = "results/timings150.csv"
 
-num_runs = 50
+num_runs = 30
 runs = list(range(num_runs))
-shape = (100,) * 10
+shape = (100,) * 5
 experiment = Experiment(csv_filename)
-tt_rank = 200
+tt_rank = 150
 sketch_ranks = np.arange(5, tt_rank + 0.1, 10, dtype=int)
 SEED = 179
 
