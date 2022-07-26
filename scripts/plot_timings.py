@@ -34,6 +34,8 @@ tt_rank = 200
 sketch_ranks = range(1, tt_rank, 10)
 SEED = 179
 
+# %%
+
 
 def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
     tensor = TensorTrain.random(
@@ -167,21 +169,11 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
         error_func=tt_error_func,
     )
 
-# for tt_rank, sketch_rank, run in tqdm(
-#     list(product(tt_ranks, sketch_ranks, runs)), desc="TT-SVD"
-# ):
-#     tensor = TensorTrain.random(shape, rank=tt_rank)
-#     experiment.do_experiment(
-#         tensor,
-#         "TT-SVD",
-#         experiment_tt_svd,
-#         rank=sketch_rank,
-#         tensor_rank=tt_rank,
-#         sketch_rank=sketch_rank,
-#         run=run,
-#     )
+# --------------------------------
 
 # %%
+import pandas as pd
+import matplotlib.pyplot as plt
 
 df = pd.read_csv(csv_filename)
 
@@ -213,7 +205,8 @@ timing_df = (
 )
 timing_df.name.unique()
 # %%
-for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
+markers = ["s", "o", "D"]
+for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
@@ -222,8 +215,8 @@ for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
         # xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
         # yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
         # capsize=3,
-        "-o",
-        ms=3,
+        marker=markers[i],
+        ms=4,
         label=label,
         # linestyle="",
     )
@@ -237,7 +230,8 @@ plt.title("Error vs. time taken")
 plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 
 # %%
-for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
+markers = ["s", "o", "D"]
+for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
@@ -245,9 +239,9 @@ for label in ("HMT", "STTA+3", "STTAx2", "OTTS+3", "OTTSx2"):
         sub_df.time50,
         # yerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
         # capsize=3,
-        "-o",
         label=label,
-        ms=3
+        marker=markers[i],
+        ms=4
         # linestyle="",
     )
 
