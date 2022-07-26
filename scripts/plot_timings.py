@@ -32,7 +32,7 @@ runs = list(range(num_runs))
 shape = (100,) * 10
 experiment = Experiment(csv_filename)
 tt_rank = 100
-sketch_ranks = np.arange(5, tt_rank + 0.1, 5)
+sketch_ranks = np.arange(5, tt_rank + 0.1, 5, dtype=int)
 SEED = 179
 
 # %%
