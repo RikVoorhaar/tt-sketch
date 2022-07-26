@@ -25,13 +25,14 @@ from itertools import product
 
 from tt_sketch.tensor import TensorTrain
 
-csv_filename = "results/timings.csv"
+csv_filename = "results/timings100.csv"
 
-runs = list(range(20))
-shape = (50,) * 10
+num_runs = 10
+runs = list(range(num_runs))
+shape = (100,) * 10
 experiment = Experiment(csv_filename)
-tt_rank = 200
-sketch_ranks = range(1, tt_rank, 10)
+tt_rank = 100
+sketch_ranks = np.arange(5, tt_rank + 0.1, 5)
 SEED = 179
 
 # %%
@@ -69,7 +70,7 @@ def tt_error_func(tt1, tt2):
 
 tensors = []
 for i in tqdm(runs, desc="creating target tensors"):
-    tensor = tt_exp_decay(shape, tt_rank=tt_rank, seed=SEED + i)
+    tensor = tt_exp_decay(shape, min_svdval=-10, tt_rank=tt_rank, seed=SEED + i)
     tensors.append(tensor)
 
 # %%
@@ -176,6 +177,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 df = pd.read_csv(csv_filename)
+df = df[df["name"].isin(("STTAx2", "STTA+3", "HMT"))]
 
 
 def make_percentile_function(percentile):
@@ -203,6 +205,7 @@ timing_df = (
     )
     .reset_index()
 )
+max_xtick = np.ceil(timing_df.time50.max() * 10 + 1) / 10
 timing_df.name.unique()
 # %%
 markers = ["s", "o", "D"]
@@ -226,7 +229,9 @@ plt.xlabel("Time taken (s)")
 plt.legend()
 plt.yscale("log")
 # plt.xscale("log")
+plt.xlim(0, None)
 plt.title("Error vs. time taken")
+plt.xticks(np.arange(0, max_xtick, 0.1))
 plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 
 # %%
@@ -248,7 +253,11 @@ for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
 plt.xlabel("TT-rank of sketch")
 plt.ylabel("Time taken (s)")
 plt.legend()
-plt.yscale("log")
+plt.yticks(np.arange(0, max_xtick, 0.2))
+# plt.yscale("log")
+plt.ylim(0, None)
+plt.xlim(0, None)
+plt.xticks(np.concatenate([[1], np.arange(20, 201, 20)]))
 plt.title("Time taken vs. sketch rank")
 plt.savefig("results/timings2.pdf", transparent=True, bbox_inches="tight")
 # %%
