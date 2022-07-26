@@ -25,14 +25,14 @@ from itertools import product
 
 from tt_sketch.tensor import TensorTrain
 
-csv_filename = "results/timings100.csv"
+csv_filename = "results/timings200.csv"
 
-num_runs = 10
+num_runs = 50
 runs = list(range(num_runs))
 shape = (100,) * 10
 experiment = Experiment(csv_filename)
-tt_rank = 100
-sketch_ranks = np.arange(5, tt_rank + 0.1, 5, dtype=int)
+tt_rank = 200
+sketch_ranks = np.arange(5, tt_rank + 0.1, 10, dtype=int)
 SEED = 179
 
 # %%
@@ -212,12 +212,12 @@ markers = ["s", "o", "D"]
 for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
-    plt.plot(
+    plt.errorbar(
         sub_df.time50,
         sub_df.error50,
-        # xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
-        # yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
-        # capsize=3,
+        xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
+        yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
+        capsize=3,
         marker=markers[i],
         ms=4,
         label=label,
@@ -257,7 +257,7 @@ plt.yticks(np.arange(0, max_xtick, 0.2))
 # plt.yscale("log")
 plt.ylim(0, None)
 plt.xlim(0, None)
-plt.xticks(np.concatenate([[1], np.arange(20, 201, 20)]))
+plt.xticks(np.concatenate([np.arange(5, 101, 10)]))
 plt.title("Time taken vs. sketch rank")
 plt.savefig("results/timings2.pdf", transparent=True, bbox_inches="tight")
 # %%
