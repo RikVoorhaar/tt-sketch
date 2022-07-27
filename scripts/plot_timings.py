@@ -177,7 +177,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 df = pd.read_csv(csv_filename)
-df = df[df["name"].isin(("STTAx2", "STTA+3", "HMT"))]
+label_dic = {
+    "STTAx2": "STTAx2, TT-DRM",
+    "STTA+3": "STTA+3, TT-DRM",
+    "HMT": "HMT, TT-DRM",
+}
+df = df[df["name"].isin(label_dic)]
 
 
 def make_percentile_function(percentile):
@@ -212,15 +217,15 @@ markers = ["s", "o", "D"]
 for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
-    plt.errorbar(
+    plt.plot(
         sub_df.time50,
         sub_df.error50,
-        xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
-        yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
-        capsize=3,
+        # xerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
+        # yerr=[sub_df.error50 - sub_df.error20, sub_df.error80 - sub_df.error50],
+        # capsize=3,
         marker=markers[i],
         ms=4,
-        label=label,
+        label=label_dic[label],
         # linestyle="",
     )
 
@@ -244,7 +249,7 @@ for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
         sub_df.time50,
         # yerr=[sub_df.time50 - sub_df.time20, sub_df.time80 - sub_df.time50],
         # capsize=3,
-        label=label,
+        label=label_dic[label],
         marker=markers[i],
         ms=4
         # linestyle="",
@@ -257,7 +262,9 @@ plt.yticks(np.arange(0, max_xtick, 0.2))
 # plt.yscale("log")
 plt.ylim(0, None)
 plt.xlim(0, None)
-plt.xticks(np.concatenate([np.arange(5, 101, 10)]))
+# plt.xticks(np.concatenate([np.arange(5, 151, 10)]))
+plt.xticks(timing_df.sketch_rank.unique())
 plt.title("Time taken vs. sketch rank")
 plt.savefig("results/timings2.pdf", transparent=True, bbox_inches="tight")
 # %%
+timing_df.sketch_rank.unique()
