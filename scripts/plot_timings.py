@@ -27,7 +27,7 @@ from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings150.csv"
 
-num_runs = 30
+num_runs = 100
 runs = list(range(num_runs))
 shape = (100,) * 5
 experiment = Experiment(csv_filename)
