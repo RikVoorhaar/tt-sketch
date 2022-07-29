@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pytest
 
-sys.path.append("..")
+# sys.path.append("..")
 
 import itertools
 from tt_sketch.drm import (
@@ -72,6 +72,10 @@ def general_rank_increase(
     new_left_rank = tuple(r + 2 for r in left_rank)
     new_right_rank = tuple(r + 3 for r in right_rank)
 
+    tt_sketch3 = tt_sketch1.increase_rank(
+        X_tensor, new_left_rank, new_right_rank
+    )
+
     new_left_rank_p1 = (1,) + new_left_rank
     new_right_rank_p1 = new_right_rank + (1,)
 
@@ -87,35 +91,41 @@ def general_rank_increase(
         seed=seed,
     )
 
-    for i, (Y1, Y2) in enumerate(
-        zip(tt_sketch1.Psi_cores, tt_sketch2.Psi_cores)
-    ):
-        assert np.allclose(Y1, Y2[: left_rank_p1[i], :, : right_rank_p1[i]])
+    for tt_sketch_other in [tt_sketch2, tt_sketch3]:
 
-    for i, Y in enumerate(tt_sketch2.Psi_cores):
-        assert Y.shape == (new_left_rank_p1[i], shape[i], new_right_rank_p1[i])
-    for i, Z in enumerate(tt_sketch2.Omega_mats):
-        assert Z.shape == (new_left_rank[i], new_right_rank[i])
+        for i, (Y1, Y2) in enumerate(
+            zip(tt_sketch1.Psi_cores, tt_sketch_other.Psi_cores)
+        ):
+            assert np.allclose(Y1, Y2[: left_rank_p1[i], :, : right_rank_p1[i]])
+
+        for i, Y in enumerate(tt_sketch_other.Psi_cores):
+            assert Y.shape == (
+                new_left_rank_p1[i],
+                shape[i],
+                new_right_rank_p1[i],
+            )
+        for i, Z in enumerate(tt_sketch_other.Omega_mats):
+            assert Z.shape == (new_left_rank[i], new_right_rank[i])
 
     # Check slicing cancels out rank increase
-    left_drm3 = left_drm2.slice(None, left_rank)
-    right_drm3 = right_drm2.slice(None, right_rank)
+    left_drm4 = left_drm2.slice(None, left_rank)
+    right_drm4 = right_drm2.slice(None, right_rank)
 
-    tt_sketch3 = stream_sketch(
+    tt_sketch4 = stream_sketch(
         X_tensor,
         left_rank,
         right_rank,
-        left_drm=left_drm3,
-        right_drm=right_drm3,
+        left_drm=left_drm4,
+        right_drm=right_drm4,
         seed=seed,
     )
     for i, (Y1, Y2) in enumerate(
-        zip(tt_sketch1.Psi_cores, tt_sketch3.Psi_cores)
+        zip(tt_sketch1.Psi_cores, tt_sketch4.Psi_cores)
     ):
         assert np.all(Y1 == Y2)
 
     for i, (Y1, Y2) in enumerate(
-        zip(tt_sketch1.Omega_mats, tt_sketch3.Omega_mats)
+        zip(tt_sketch1.Omega_mats, tt_sketch4.Omega_mats)
     ):
         assert np.all(Y1 == Y2)
 
@@ -214,8 +224,8 @@ def general_exact_recovery(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
+    error = tt_sketched.error(X_dense)
     tt_sketched_dense = tt_sketched.to_numpy()
-    error = np.linalg.norm(tt_sketched_dense - X_dense)
     assert error < 1e-9
 
     tt_sketched2 = sketch_func(
@@ -226,11 +236,10 @@ def general_exact_recovery(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
-    tt_sketched_dense2 = tt_sketched2.to_numpy()
     # same seed should give exact same result. But in the case of parallel
     # execution, we can sum in different order giving same result only up to
     # machine epsilon
-    assert np.allclose(tt_sketched_dense, tt_sketched_dense2)
+    assert tt_sketched2.error(tt_sketched) < 1e-9
 
     tt_sketched3 = sketch_func(
         X_tensor,
@@ -355,7 +364,7 @@ def test_sketch_dense(n_dims):
 
 
 @pytest.mark.parametrize("sketch_method", AVAILABLE_SKETCHING_METHODS)
-def test_tensor_sum_parallel(sketch_method):
+def test_tensor_sum(sketch_method):
     seed = 179
     rank = 4
     n_dims = 4
@@ -415,15 +424,29 @@ def test_tensor_sum_parallel(sketch_method):
     X1_plus_X2 = X_sparse + X2_tt
     left_drm_type = TensorTrainDRM
     right_drm_type = TensorTrainDRM
+    left_rank_bigger = tuple(r + 10 for r in left_rank)
+    right_rank_bigger = tuple(r + 10 for r in right_rank)
     stt4 = stream_sketch(
         X1_plus_X2,
-        left_rank,
-        right_rank,
+        left_rank_bigger,
+        right_rank_bigger,
         seed,
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
-    assert stt4.to_tt().mse_error(X2) < 1e-2
+    assert stt4.to_tt().error(X2) < 1e-8
+
+    # test the user-friendlty way of updating sketch
+    stt5 = stream_sketch(
+        X_sparse,
+        left_rank_bigger,
+        right_rank_bigger,
+        seed,
+        left_drm_type=left_drm_type,
+        right_drm_type=right_drm_type,
+    )
+    stt6 = stt5 + X2_tt
+    assert stt6.error(X2) < 1e-8
 
 
 tt_drm_list = [
@@ -633,3 +656,57 @@ def test_tt_cores_contraction(n_dims, rank, bigger_side):
     assert np.allclose(left_tt.to_numpy(), right_tt.to_numpy())
     assert left_tt.rank == stt.right_rank
     assert right_tt.rank == stt.left_rank
+
+
+def test_defaults_sketch():
+    """Test that the default settings are correct."""
+    shape = (8, 9, 10)
+    r = 10
+    test_tensors = []
+
+    test_tensor_tt = TensorTrain.random(shape, r)
+    test_tensors.append(test_tensor_tt)
+
+    test_tensor_sparse = SparseTensor.random(shape, nnz=10)
+    test_tensors.append(test_tensor_sparse)
+
+    test_tensor_tucker = TuckerTensor.random(shape, 2)
+    test_tensors.append(test_tensor_tucker)
+
+    test_tensor_dense = test_tensor_sparse.dense()
+    test_tensors.append(test_tensor_dense)
+
+    test_tensor_sum = test_tensor_tt + test_tensor_sparse
+    test_tensors.append(test_tensor_sum)
+
+    test_tensor_cp = CPTensor.random(shape, 5)
+    test_tensors.append(test_tensor_cp)
+
+    for test_tensor in test_tensors:
+        sketched = hmt_sketch(test_tensor, r + 1)
+        assert sketched.error(test_tensor) < 1e-8
+        sketched = orthogonal_sketch(
+            test_tensor, left_rank=r + 1, right_rank=r + 2
+        )
+        assert sketched.error(test_tensor) < 1e-8
+        sketched = stream_sketch(test_tensor, left_rank=r + 1, right_rank=r + 2)
+        assert sketched.error(test_tensor) < 1e-8
+
+
+def test_sketched_tt_arithmetic():
+    n_dims = 3
+    rank = tuple(range(3, 3 + n_dims - 1))[::-1]
+    right_rank = tuple(r + 1 for r in rank)
+    X_shape = tuple(range(9, 9 + n_dims))
+    X_tt = TensorTrain.random(X_shape, rank)
+    tts1 = stream_sketch(X_tt, left_rank=rank, right_rank=right_rank)
+    tt1 = tts1.to_tt()
+
+    tts2 = tts1 * 2
+    tt2 = tts2.to_tt()
+
+    assert tt2.error(tt1 * 2) < 1e-10
+
+    tts3 = tts1.T
+    tt3 = tts3.to_tt()
+    assert tt3.error(tt1.T) < 1e-10

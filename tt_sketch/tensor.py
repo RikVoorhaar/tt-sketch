@@ -4,11 +4,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from typing import (
     Iterable,
     List,
     Optional,
     Sequence,
+    Dict,
     Tuple,
     Union,
     TypeVar,
@@ -60,6 +62,8 @@ class Tensor(ABC):
         This is not numerically stable, and gives inaccurate results below
         relative errors of around 1e-8.
         """
+        if isinstance(other, np.ndarray):
+            other = DenseTensor(other)
         other_norm = other.norm()
         if fast:
             self_norm = self.norm()
@@ -75,22 +79,6 @@ class Tensor(ABC):
         if rmse:
             error /= self.size
         return error
-
-    def mse_error(self, other: Union[Tensor, npt.NDArray]) -> float:
-        """Computes the MSE error"""
-        warnings.warn("deprecated method", DeprecationWarning)
-        if isinstance(other, Tensor):
-            other = other.to_numpy()
-        square_error = np.linalg.norm(self.to_numpy() - other) ** 2
-        return square_error / np.prod(self.shape)
-
-    def relative_error(self, other: Union[Tensor, npt.NDArray]) -> float:
-        """Computes the relative error"""
-        warnings.warn("deprecated method", DeprecationWarning)
-        if isinstance(other, Tensor):
-            other = other.to_numpy()
-        error = np.linalg.norm(self.to_numpy() - other)
-        return float(error / np.linalg.norm(other))
 
     @property
     def ndim(self) -> int:
@@ -136,10 +124,6 @@ class Tensor(ABC):
             return other.dot(self)
         if not reverse:  # try first to see if other can dot self
             return other.dot(self, reverse=True)
-        warnings.warn(
-            f"Using fallback method for dot of {type(self)} and {type(other)}.",
-            RuntimeWarning,
-        )
         self_np = self.to_numpy().reshape(-1)
         other_np = other.to_numpy().reshape(-1)
         return np.dot(self_np, other_np)
@@ -266,6 +250,13 @@ class SparseTensor(Tensor):
             f" entries at {hex(id(self))}>"
         )
 
+    def dot(self, other: Tensor, reverse=False) -> float:
+        try:
+            other_entries = other.gather(self.indices)
+            return np.dot(other_entries, self.entries)
+        except AttributeError:
+            return super().dot(other, reverse=reverse)
+
     @classmethod
     def random(
         cls, shape: Tuple[int, ...], nnz: int, seed: Optional[int] = None
@@ -283,6 +274,24 @@ class SparseTensor(Tensor):
 
     def __mul__(self, other: float) -> SparseTensor:
         return self.__class__(self.shape, self.indices, self.entries * other)
+
+    def gather(
+        self, indices: Tuple[npt.NDArray, ...]
+    ) -> npt.NDArray[np.float64]:
+        """
+        Gathers the entries corresponding to the given indices.
+        """
+        dense_indices = np.ravel_multi_index(indices, self.shape)
+        out = np.zeros(len(dense_indices))
+        dic = self.dict
+        for i, ind in enumerate(dense_indices):
+            out[i] = dic.get(ind, 0.0)
+        return out
+
+    @cached_property
+    def dict(self) -> Dict[int, float]:
+        dense_indices = np.ravel_multi_index(self.indices, self.shape)
+        return {i: v for i, v in zip(dense_indices, self.entries)}
 
 
 class TensorTrain(Tensor):
@@ -365,7 +374,7 @@ class TensorTrain(Tensor):
                 core /= np.sqrt(r1)
             else:
                 raise ValueError(f"Unknown norm goal: {norm_goal}")
-            
+
             core = core.reshape(r1, n, r2)
             cores.append(core)
 
@@ -539,9 +548,7 @@ class TensorTrain(Tensor):
 
         Result is computed in a left-to-right sweep.
         """
-        if not isinstance(other, TensorTrain):
-            return super().dot(other, reverse=reverse)
-        else:
+        if isinstance(other, TensorTrain):
             result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
             for core1, core2 in zip(self.cores[1:], other.cores[1:]):
                 # optimize reduces complexity from r^4*n to r^3*n
@@ -549,6 +556,8 @@ class TensorTrain(Tensor):
                     "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
                 )
             return np.sum(result)
+        else:
+            return super().dot(other, reverse=reverse)
 
     def orthogonalize(self) -> TensorTrain:
         """Do QR sweep to left-orthogonalize"""
@@ -571,19 +580,36 @@ class TensorTrain(Tensor):
             f" at {hex(id(self))}>"
         )
 
+    def error(
+        self: TType,
+        other: TType,
+        relative: bool = False,
+        rmse: bool = False,
+        fast: bool = False,
+    ) -> float:
+        """
+        L2 error of tensor, see docs for ``Tensor::error``.
 
-def diff_tt_sparse(tt: TensorTrain, sparse_tensor: SparseTensor) -> float:
-    """
-    Compute the (Frobenius) norm of the difference of a TT and a sparse tensor
-    """
-    norm_squared = (
-        tt.norm() ** 2
-        + sparse_tensor.norm() ** 2
-        - 2 * np.dot(tt.gather(sparse_tensor.indices), sparse_tensor.entries)
-    )
-    if norm_squared < 0:
-        return 0
-    return norm_squared**0.5
+        Overloads only the error between two Tensor Trains
+        using much faster accurate method.
+        """
+        try:  # Try coercing to TensorTrain
+            other = other.to_tt()
+        except AttributeError:
+            pass
+
+        if isinstance(other, TensorTrain):
+            error = self.add(-other).norm()
+            if relative:
+                other_norm = other.norm()
+                if other_norm == 0:
+                    return np.inf
+                error /= other_norm
+            if rmse:
+                error /= self.size
+            return error
+        else:
+            return super().error(other, relative=relative, rmse=rmse, fast=fast)
 
 
 class TensorSum(Generic[TType], Tensor):

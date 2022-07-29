@@ -61,7 +61,7 @@ class DRM(ABC):
             seed = hash(uniform())
         seed = mod(seed, 2**32 - 1)
         self.seed = seed  # type: ignore
-    
+
     @property
     def T(self):
         transposed = deepcopy(self)
@@ -71,26 +71,6 @@ class DRM(ABC):
         transposed.rank_max = transposed.rank_max[::-1]
         transposed.rank = transposed.rank[::-1]
         return transposed
-
-    @classmethod
-    def _from_data(
-        cls,
-        rank: Union[Tuple[int, ...], int],
-        shape: Tuple[int, ...],
-        transpose: bool,
-        seed: int,
-        rank_min: Optional[Tuple[int, ...]] = None,
-        rank_max: Optional[Tuple[int, ...]] = None,
-        true_rank: Optional[Tuple[int, ...]] = None,
-        **attributes: Dict[str, Any],
-    ) -> DRM:
-        obj = cls.__new__(cls)
-        super().__init__(
-            rank, shape, transpose, seed, rank_min, rank_max, true_rank
-        )  # type: ignore
-        for k, v in attributes.items():
-            setattr(obj, k, deepcopy(v))  # deepcopy prevents state mutation
-        return obj
 
     def __repr__(self) -> str:
         if self.transpose:
@@ -112,13 +92,20 @@ class CanSlice(DRM):
     def slice(
         self, start_rank: Tuple[int, ...], end_rank: Tuple[int, ...]
     ) -> DRM:
+        if self.transpose:
+            # If transpose, the rank will be reversed during init.
+            # To keep rank the same, need to reverse it here as well.
+            new_true_rank = self.true_rank[::-1]
+        else:
+            new_true_rank = self.true_rank
         return self.__class__(
-            self.rank,
-            self.shape,
-            self.transpose,
-            self.seed,
+            rank=self.rank,
+            shape=self.shape,
+            transpose=self.transpose,
+            seed=self.seed,
             rank_min=start_rank,
             rank_max=end_rank,
+            true_rank=new_true_rank,
         )
 
 

@@ -31,3 +31,6 @@ scripts/data
 dist/*
 *.sh
 scripts/old
+.vscode
+*.pytest_cache
+htmlcov

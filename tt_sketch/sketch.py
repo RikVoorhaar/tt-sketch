@@ -274,7 +274,7 @@ class SketchedTensorTrain(Tensor):
     @property
     def T(self) -> SketchedTensorTrain:
         new_sketch = self.sketch_.T
-        return self.__class__(new_sketch)
+        return self.__class__(new_sketch, self.right_drm.T, self.left_drm.T)
 
     def to_tt(self) -> TensorTrain:
         return TensorTrain(self.C_cores())
@@ -303,14 +303,18 @@ class SketchedTensorTrain(Tensor):
     def increase_rank(
         self,
         tensor: Tensor,
-        new_left_rank: Tuple[int, ...],
-        new_right_rank: Tuple[int, ...],
+        new_left_rank: TTRank,
+        new_right_rank: TTRank,
     ) -> SketchedTensorTrain:
         """Increase the rank of the approximation by performing a new sketch.
 
         Requires DRM with support for the ``CanIncreaseRank`` protocol, which
         currently is only supported by ``SparseGaussianDRM``.
         """
+        new_left_rank = process_tt_rank(new_left_rank, tensor.shape, trim=False)
+        new_right_rank = process_tt_rank(
+            new_right_rank, tensor.shape, trim=False
+        )
         for drm in (self.left_drm, self.right_drm):
             if not isinstance(drm, CanSlice):
                 drm_name = drm.__class__.__name__
@@ -359,8 +363,8 @@ class SketchedTensorTrain(Tensor):
 
 def _blocked_stream_sketch_components(
     tensor: Tensor,
-    left_sketch: CanSlice,
-    right_sketch: CanSlice,
+    left_rm: CanSlice,
+    right_drm: CanSlice,
     left_rank_slices: List[Tuple[int, ...]],
     right_rank_slices: List[Tuple[int, ...]],
     excluded_entries: Optional[Sequence[Tuple[int, int]]] = None,
@@ -368,11 +372,11 @@ def _blocked_stream_sketch_components(
     if excluded_entries is None:
         excluded_entries = []
     block_left_sketches = [
-        left_sketch.slice(rank1, rank2)
+        left_rm.slice(rank1, rank2)
         for rank1, rank2 in zip(left_rank_slices[:-1], left_rank_slices[1:])
     ]
     block_right_sketches = [
-        right_sketch.slice(rank1, rank2)
+        right_drm.slice(rank1, rank2)
         for rank1, rank2 in zip(right_rank_slices[:-1], right_rank_slices[1:])
     ]
 

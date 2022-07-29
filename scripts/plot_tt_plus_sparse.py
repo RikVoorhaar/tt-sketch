@@ -43,7 +43,7 @@ tensor = tensor_sparse + tensor_tt
 csv_filename = "results/tt_plus_sparse.csv"
 experiment = Experiment(csv_filename)
 
-error_just_tt = tensor_tt.relative_error(tensor)
+error_just_tt = tensor_tt.error(tensor, relative=True)
 # %%
 
 ranks = range(1, 31)

@@ -41,7 +41,7 @@ class DenseGaussianDRM(
 
         # seq = SeedSequence(self.seed)
         # seeds = seq.generate_state(len(self.true_rank))
-        for i, (r, n) in enumerate(
+        for mu, (r, n) in enumerate(
             zip(self.true_rank, shape_sketch[:-1])
         ):
             dim_prod *= n
@@ -53,7 +53,7 @@ class DenseGaussianDRM(
 
             # sketching_mat = random_normal(shape=(r, dim_prod), seed=seed)
             sketching_mat = np.random.normal(size=(r, dim_prod))
-            sketching_mat = sketching_mat[self.rank_min[i] : self.rank_max[i]]
+            sketching_mat = sketching_mat[self.rank_min[mu] : self.rank_max[mu]]
             self.sketching_mats.append(sketching_mat)
 
     @handle_transpose

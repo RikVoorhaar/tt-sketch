@@ -17,16 +17,16 @@ def test_tt_round():
         new_cores[i + 1] = np.einsum("ij,jkl->ikl", Q, new_cores[i + 1])
     tt2 = TensorTrain(new_cores)
 
-    assert tt.mse_error(tt2) < 1e-8
+    assert tt.error(tt2) < 1e-8
 
     tt3 = tt2.round(eps=1e-12)
     assert tt3.rank == tt.rank
     assert tt2.rank != tt.rank  # check for side effects
-    assert tt.mse_error(tt3) < 1e-8
+    assert tt.error(tt3) < 1e-8
 
     tt4 = tt2.round(max_rank=2)
     assert tt4.rank == tt.rank
-    assert tt.mse_error(tt4) < 1e-8
+    assert tt.error(tt4) < 1e-8
 
 
 def test_tt_add():

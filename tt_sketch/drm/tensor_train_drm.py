@@ -124,7 +124,6 @@ class TensorTrainDRM(
     @handle_transpose
     def sketch_tucker(self, tensor: TuckerTensor) -> ArrayGenerator:
         n_dims = len(self.shape)
-        print("core shape:", self.cores[0].shape)
         partial_contraction = np.einsum(
             "ijk,jl->ilk", self.cores[0], tensor.factors[0].T
         )

@@ -63,7 +63,7 @@ def tt_error_func(tt1, tt2):
         tt1 = tt1.to_tt()
     tt2_norm = tt2.norm()
     if tt2_norm == 0:
-        return np.inf
+        return np.infa
     error = tt1.add(-tt2).norm() / tt2_norm
     return error
 
