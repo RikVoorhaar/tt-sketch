@@ -29,3 +29,5 @@ docs/_templates
 scripts/data
 *.pdf
 dist/*
+*.sh
+scripts/old
