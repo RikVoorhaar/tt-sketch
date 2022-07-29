@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from tt_sketch.drm import TensorTrainDRM, DenseGaussianDRM
 from tt_sketch.tensor import TensorTrain, TensorSum, Tensor
 from tt_sketch.sketch import SketchedTensorTrain, stream_sketch, hmt_sketch
+from tt_sketch.utils import process_tt_rank
 from experiment_base import (
     Experiment,
     experiment_stream_sketch,
@@ -17,11 +18,11 @@ csv_filename = "results/dimension_scaling_guassian.csv"
 experiment = Experiment(csv_filename)
 
 seed = 179
-tt_rank = 20
-round_rank = 5
+tt_rank = 10
+round_rank = 8
 dim = 5
-n_dims_list = np.arange(3, 9, dtype=int)
-runs = range(100)
+n_dims_list = np.arange(4, 13, dtype=int)
+runs = range(30)
 # %%
 def tt_exp_decay(shape, tt_rank, min_svdval=-20, seed=None):
     tensor = TensorTrain.random(
@@ -66,13 +67,15 @@ def make_tensor(n_dims, tt_rank, dim, seed=None, min_svdval=-20):
 # %%
 for n_dims in tqdm(n_dims_list):
     tensor = make_tensor(
-        n_dims, tt_rank, dim, seed=seed + n_dims, min_svdval=-10
+        n_dims, tt_rank, dim, seed=seed + n_dims, min_svdval=-5
     )
+    round_rank_trim = process_tt_rank(round_rank, tensor.shape, trim=True)
+    right_rank = tuple(r*2 for r in round_rank_trim)
     experiment.do_experiment(
         tensor,
         "TT-SVD",
         experiment_tt_round,
-        rank=round_rank,
+        rank=round_rank_trim,
         n_dims=n_dims,
         error_func=tt_error_func,
     )
@@ -82,7 +85,7 @@ for n_dims in tqdm(n_dims_list):
             "HMT",
             experiment_hmt_sketch,
             drm_type=DenseGaussianDRM,
-            rank=round_rank,
+            rank=round_rank_trim,
             run=run,
             n_dims=n_dims,
             error_func=tt_error_func,
@@ -92,8 +95,8 @@ for n_dims in tqdm(n_dims_list):
             "STTA",
             experiment_stream_sketch,
             drm_type=DenseGaussianDRM,
-            left_rank=round_rank,
-            right_rank=round_rank * 2,
+            left_rank=round_rank_trim,
+            right_rank=right_rank,
             run=run,
             n_dims=n_dims,
             error_func=tt_error_func,
@@ -120,7 +123,7 @@ jitter_dict = {
 }
 for name, marker in zip(("HMT", "STTA"), markers):
     df_subset = df[df["name"] == name]
-    tt_svd = df[(df["rank"] == round_rank) & (df["name"] == "TT-SVD")][
+    tt_svd = df[ (df["name"] == "TT-SVD")][
         "error"
     ].array
     # tt_svd = 1
@@ -145,6 +148,8 @@ for name, marker in zip(("HMT", "STTA"), markers):
 
 ax = plt.gca()
 ax.set_xticks(n_dims_plot)
+
+plt.axhline(1, color="k", linestyle="--",alpha=0.7)
 
 plt.legend()
 plt.title("Scaling of error with number of modes")
