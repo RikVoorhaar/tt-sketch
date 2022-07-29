@@ -48,7 +48,6 @@ for rank, run in tqdm(list(product(ranks, runs)), desc="OTTS"):
         run=run,
     )
 
-
 for rank, run in tqdm(list(product(ranks, runs)), desc="STTA"):
     experiment.do_experiment(
         tensor,
@@ -106,7 +105,7 @@ plt.errorbar(
     plot_ranks - 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="HMT, TT-DRM",
+    label="TT-HMT, TT-DRM",
     capsize=3,
     linestyle="",
 )

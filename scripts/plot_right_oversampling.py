@@ -40,38 +40,47 @@ experiment = Experiment(csv_filename)
 
 # %%
 left_rank = 10
-right_ranks = range(11, 31)
+# right_ranks = range(11, 31)
+oversampling_params = range(2, 41, 2)
 
-runs = range(30)
+runs = range(100)
 
-for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="OTTS"):
-    experiment.do_experiment(
-        tensor,
-        "OTTS",
-        experiment_orthogonal_sketch,
-        left_rank=left_rank,
-        right_rank=right_rank,
-        run=run,
-    )
+# for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="OTTS"):
+#     experiment.do_experiment(
+#         tensor,
+#         "OTTS",
+#         experiment_orthogonal_sketch,
+#         left_rank=left_rank,
+#         right_rank=right_rank,
+#         run=run,
+#     )
 
-for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="STTA"):
+for oversampling, run in tqdm(
+    list(product(oversampling_params, runs)), desc="STTA"
+):
     experiment.do_experiment(
         tensor,
         "STTA",
         experiment_stream_sketch,
         left_rank=left_rank,
-        right_rank=right_rank,
+        right_rank=left_rank + oversampling,
         run=run,
     )
 
 experiment.do_experiment(tensor, "tt_svd", experiment_tt_svd, rank=left_rank)
+experiment.do_experiment(
+    tensor, "tt_svd", experiment_tt_svd, rank=left_rank - 1
+)
+experiment.do_experiment(
+    tensor, "tt_svd", experiment_tt_svd, rank=left_rank - 2
+)
 
 # %%
 df = pd.read_csv(csv_filename)
 
 plt.figure(figsize=(8, 4))
-ttsvd = df[df["name"] == "tt_svd"]
-plt.axhline(ttsvd["error"].iloc[0], ls="--", color="k", label="TT-SVD")
+ttsvd = df[(df["name"] == "tt_svd") & (df["rank"] == left_rank-2)]
+# plt.axhline(ttsvd["error"].iloc[0], ls="--", color="k", label="TT-SVD")
 
 # rsketch = df[df["name"] == "OTTS"]
 # right_ranks = rsketch["right_rank"].unique()

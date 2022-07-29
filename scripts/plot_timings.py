@@ -180,7 +180,7 @@ df = pd.read_csv(csv_filename)
 label_dic = {
     "STTAx2": "STTAx2, TT-DRM",
     "STTA+3": "STTA+3, TT-DRM",
-    "HMT": "HMT, TT-DRM",
+    "HMT": "TT-HMT, TT-DRM",
 }
 df = df[df["name"].isin(label_dic)]
 

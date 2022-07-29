@@ -5,7 +5,7 @@ from typing import Callable, Dict, Optional, Any
 
 import pandas as pd
 from tt_sketch.sketch import stream_sketch, orthogonal_sketch, hmt_sketch
-from tt_sketch.tensor import Tensor
+from tt_sketch.tensor import Tensor, TensorTrain
 from tt_sketch.tt_svd import tt_svd
 
 
@@ -169,10 +169,25 @@ def experiment_hmt_sketch(
 
 
 def experiment_tt_svd(
-    input_tensor: Tensor, rank=None, **kwargs
+    input_tensor: Tensor, rank=None, error_func=None, **kwargs
 ) -> Dict[str, Any]:
     start_time = time.perf_counter()
     tt = tt_svd(input_tensor, rank=rank)
     time_taken = time.perf_counter() - start_time
-    error = tt.error(input_tensor, relative=True)
+    if error_func is not None:
+        error = error_func(tt, input_tensor)
+    else:
+        error = tt.error(input_tensor, relative=True)
+    return {"error": error, "time_taken": time_taken}
+
+def experiment_tt_round(
+    input_tensor: TensorTrain, rank=None, error_func=None, **kwargs
+) -> Dict[str, Any]:
+    start_time = time.perf_counter()
+    tt = input_tensor.round(max_rank=rank)
+    time_taken = time.perf_counter() - start_time
+    if error_func is not None:
+        error = error_func(tt, input_tensor)
+    else:
+        error = tt.error(input_tensor, relative=True)
     return {"error": error, "time_taken": time_taken}

@@ -112,7 +112,7 @@ plt.errorbar(
     plot_ranks - 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="HMT, TT-DRM",
+    label="TT-HMT, TT-DRM",
     capsize=3,
     linestyle="",
 )

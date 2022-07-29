@@ -116,8 +116,8 @@ plt.plot(plot_ranks, ttsvd.error.values, "-o", label="TT-SVD", ms=3)
 
 hsketch = df[df["name"] == "HMT"]
 drms = {
-    "DenseGaussianDRM": "HMT, Gaussian DRM",
-    "TensorTrainDRM": "HMT, TT-DRM",
+    "DenseGaussianDRM": "TT-HMT, Gaussian DRM",
+    "TensorTrainDRM": "TT-HMT, TT-DRM",
 }
 for i, (drm, drm_name) in enumerate(drms.items()):
     error_gb = hsketch[hsketch["drm_type"] == drm].groupby("rank").error

@@ -50,7 +50,9 @@ class TensorTrainDRM(
             tt_shape = self.shape
             tt_rank = self.true_rank
         if "cores" not in kwargs:
-            tt = TensorTrain.random(tt_shape, tt_rank, self.seed)
+            tt = TensorTrain.random(
+                tt_shape, tt_rank, self.seed, norm_goal="norm-preserve"
+            )
             self.cores = tt.cores[:-1]
         else:
             self.cores = kwargs["cores"]
@@ -77,7 +79,11 @@ class TensorTrainDRM(
                 lr_contract = np.einsum("ijk,ijl->kl", tensor_core, drm_core)
             else:
                 lr_contract = np.einsum(
-                    "ij,ikl,jkm->lm", lr_contract, tensor_core, drm_core, optimize='optimal'
+                    "ij,ikl,jkm->lm",
+                    lr_contract,
+                    tensor_core,
+                    drm_core,
+                    optimize="optimal",
                 )
             yield lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
 
@@ -92,7 +98,11 @@ class TensorTrainDRM(
                 lr_contract = np.einsum("ij,lik->jk", tensor_core, drm_core)
             else:
                 lr_contract = np.einsum(
-                    "ij,ki,jkl->il", lr_contract, tensor_core, drm_core, optimize='optimal'
+                    "ij,ki,jkl->il",
+                    lr_contract,
+                    tensor_core,
+                    drm_core,
+                    optimize="optimal",
                 )
             yield lr_contract[:, self.rank_min[mu] : self.rank_max[mu]]
 

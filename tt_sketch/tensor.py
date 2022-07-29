@@ -321,7 +321,8 @@ class TensorTrain(Tensor):
         rank: TTRank,
         seed: Optional[int] = None,
         orthog: bool = False,
-        trim: bool = False,
+        trim: Optional[bool] = None,
+        norm_goal: str = "norm-1",
     ) -> TensorTrain:
         """
         Generate random orthogonal tensor train cores
@@ -331,13 +332,15 @@ class TensorTrain(Tensor):
         is 1.
 
         If ``trim=True``, the ranks are trimmed; i.e. we enforce that r1*n>=r2
-        and r2*n>=r1.
+        and r2*n>=r1a.
 
         If ``orthog`` is set to ``True``, all cores except the last are
         left-orthogonalized. Trim must be enabled in this case.
         """
 
         d = len(shape)
+        if trim is None:
+            trim = True if orthog else False
         if orthog and not trim:
             raise ValueError(
                 "Trimming must be enabled if orthogonalization is enabled."
@@ -356,8 +359,13 @@ class TensorTrain(Tensor):
 
             if orthog and i < d - 1:
                 core, _ = np.linalg.qr(core, mode="reduced")
+            elif norm_goal == "norm-1":
+                core /= np.sqrt(r1 * n)
+            elif norm_goal == "norm-preserve":
+                core /= np.sqrt(r1)
             else:
-                core /= np.sqrt(r1 * n * r2)
+                raise ValueError(f"Unknown norm goal: {norm_goal}")
+            
             core = core.reshape(r1, n, r2)
             cores.append(core)
 
@@ -433,7 +441,7 @@ class TensorTrain(Tensor):
         self,
         eps: Optional[float] = None,
         max_rank: Optional[TTRank] = None,
-        orthogonalize: bool = True,
+        orthogonalized: bool = False,
     ) -> TensorTrain:
         """Standard TT-SVD rounding scheme.
 
@@ -441,8 +449,8 @@ class TensorTrain(Tensor):
         RL sweep. Leaves the tensor right-orthogonalized.
 
         If the tensor is already orthogonalized, then pass
-        ``orthogonalize=True`` to avoid unnecessary re-orthogonalization."""
-        if not orthogonalize:
+        ``orthogonalized=True`` to avoid unnecessary re-orthogonalization."""
+        if not orthogonalized:
             tt = self.orthogonalize()  # left-orthogonalize
         else:
             tt = self
