@@ -171,7 +171,9 @@ for name, marker in zip(
             marker=marker,
             markersize=marker_size,
             label=label_name,
-            linestyle="",
+            linewidth=1,
+            # linestyle="",
+
         )
 
 plt.xscale("log")
@@ -187,8 +189,8 @@ ax.set_yticks(np.arange(2, 18 + 0.1, 2))
 ax.yaxis.set_minor_locator(AutoMinorLocator(2))
 
 plt.legend()
-plt.title("Scaling of error with number of modes")
-plt.xlabel("Number of modes")
+plt.title("Dependence of the error on the tensor order")
+plt.xlabel("Order of tensor")
 plt.ylabel("Normalized error")
 plt.savefig(
     "results/plot-dimension-scaling.pdf", transparent=True, bbox_inches="tight"
