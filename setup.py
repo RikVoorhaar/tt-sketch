@@ -26,7 +26,7 @@ long_description = short_description
 
 setuptools.setup(
     name="tt_sketch",
-    version="1.0",
+    version="1.1",
     author="Rik Voorhaar",
     description=short_description,
     long_description=long_description,
