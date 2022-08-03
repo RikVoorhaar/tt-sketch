@@ -77,7 +77,7 @@ class Tensor(ABC):
                 return np.inf
             error /= other_norm
         if rmse:
-            error /= self.size
+            error /= np.sqrt(np.prod(self.shape))
         return error
 
     @property
@@ -168,13 +168,6 @@ class DenseTensor(Tensor):
     def size(self) -> int:
         return np.prod(self.shape)
 
-    def __getitem__(self, key):
-        new_data = self.data.__getitem__(key)
-        return self.__class__(new_data)
-
-    def __setitem__(self, key, value):
-        self.data.__setitem__(key, value)
-
     def to_numpy(self) -> npt.NDArray[np.float64]:
         return self.data
 
@@ -183,6 +176,10 @@ class DenseTensor(Tensor):
 
     def __mul__(self, other: float) -> DenseTensor:
         return self.__class__(self.data * other)
+
+    @classmethod
+    def random(cls, shape: Tuple[int, ...]) -> DenseTensor:
+        return cls(random_normal(shape))
 
 
 @dataclass
@@ -606,7 +603,7 @@ class TensorTrain(Tensor):
                     return np.inf
                 error /= other_norm
             if rmse:
-                error /= self.size
+                error /= np.sqrt(np.prod(self.shape))
             return error
         else:
             return super().error(other, relative=relative, rmse=rmse, fast=fast)
@@ -741,7 +738,7 @@ class CPTensor(Tensor):
         )
 
     def __mul__(self, other: float) -> CPTensor:
-        new_cores = self.cores
+        new_cores = [c for c in self.cores]
         new_cores[0] = new_cores[0] * other
         return self.__class__(new_cores)
 

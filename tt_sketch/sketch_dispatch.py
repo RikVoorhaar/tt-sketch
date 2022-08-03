@@ -4,7 +4,7 @@ Implements methods for dispatching sketching methods for tensors and DRMs.
 
 import enum
 from functools import partial
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -87,7 +87,7 @@ def sketch_omega_sum(
     right_sketch_array: ArrayList,
     *,
     tensor: TensorSum,
-    omega_shape: tuple[int, int],
+    omega_shape: Tuple[int, int],
     **kwargs,
 ) -> npt.NDArray:
     omega = np.zeros(omega_shape)
@@ -113,7 +113,7 @@ def sketch_psi_sum(
     right_sketch_array: ArrayList,
     *,
     tensor: TensorSum,
-    psi_shape: tuple[int, int],
+    psi_shape: Tuple[int, int],
     **kwargs,
 ) -> npt.NDArray:
     psi = np.zeros(psi_shape)
