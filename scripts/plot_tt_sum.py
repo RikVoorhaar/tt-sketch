@@ -12,6 +12,7 @@ from experiment_base import (
     experiment_orthogonal_sketch,
     experiment_stream_sketch,
     experiment_tt_svd,
+    experiment_hmt_sketch,
 )
 
 n_dims = 5
@@ -25,7 +26,7 @@ np.random.seed(179)
 tt_summands_list: List[Tensor] = []
 coeffs = np.logspace(0, -20, num_tts)
 for coeff in coeffs:
-    tensor_tt = TensorTrain.random(shape, rank=tt_rank)* coeff
+    tensor_tt = TensorTrain.random(shape, rank=tt_rank) * coeff
     tt_summands_list.append(tensor_tt)
 tensor = TensorSum(tt_summands_list)
 tt_sum_dense = tensor.dense()
@@ -47,7 +48,6 @@ for rank, run in tqdm(list(product(ranks, runs)), desc="OTTS"):
         run=run,
     )
 
-
 for rank, run in tqdm(list(product(ranks, runs)), desc="STTA"):
     experiment.do_experiment(
         tensor,
@@ -55,6 +55,15 @@ for rank, run in tqdm(list(product(ranks, runs)), desc="STTA"):
         experiment_stream_sketch,
         left_rank=rank,
         right_rank=rank * 2,
+        run=run,
+    )
+
+for rank, run in tqdm(list(product(ranks, runs)), desc="HMT"):
+    experiment.do_experiment(
+        tensor,
+        "HMT",
+        experiment_hmt_sketch,
+        rank=rank,
         run=run,
     )
 
@@ -69,19 +78,34 @@ df = pd.read_csv(csv_filename)
 plt.figure(figsize=(10, 4))
 ttsvd = df[df["name"] == "TT-SVD"]
 
-rsketch = df[df["name"] == "OTTS"]
-plot_ranks = rsketch["left_rank"].unique()
-plt.plot(plot_ranks, ttsvd.error.values, "-", label="TT-SVD")
+# rsketch = df[df["name"] == "OTTS"]
 
-error_gb = rsketch.groupby(rsketch["left_rank"]).error
+# error_gb = rsketch.groupby(rsketch["left_rank"]).error
+# errors05 = error_gb.quantile(0.5).values
+# errors08 = error_gb.quantile(0.8).values - errors05
+# errors02 = errors05 - error_gb.quantile(0.2).values
+# plt.errorbar(
+#     plot_ranks - 0.05,
+#     errors05,
+#     yerr=np.stack([errors02, errors08]),
+#     label="OTTS, TT-DRM",
+#     capsize=3,
+#     linestyle="",
+# )
+
+
+hsketch = df[df["name"] == "HMT"]
+plot_ranks = hsketch["rank"].unique()
+plt.plot(plot_ranks, ttsvd.error.values, "-o", label="TT-SVD", ms=3)
+error_gb = hsketch.groupby("rank").error
 errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks - 0.05,
+    plot_ranks - 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="OTTS",
+    label="TT-HMT, TT-DRM",
     capsize=3,
     linestyle="",
 )
@@ -92,14 +116,13 @@ errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks + 0.05,
+    plot_ranks + 0.1,
     errors05,
     yerr=np.stack([errors02, errors08]),
-    label="STTA",
+    label="STTA, TT-DRM",
     capsize=3,
     linestyle="",
 )
-
 plt.xticks(ranks)
 plt.ylabel("Relative error")
 plt.xlabel("TT-rank")

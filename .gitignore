@@ -29,3 +29,8 @@ docs/_templates
 scripts/data
 *.pdf
 dist/*
+*.sh
+scripts/old
+.vscode
+*.pytest_cache
+htmlcov

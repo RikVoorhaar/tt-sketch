@@ -17,7 +17,14 @@ from experiment_base import (
     experiment_orthogonal_sketch,
     experiment_stream_sketch,
     experiment_tt_svd,
+    experiment_hmt_sketch,
 )
+import sys
+
+if not sys.warnoptions:
+    import warnings
+
+    warnings.simplefilter("ignore")
 
 
 size = 5
@@ -63,6 +70,19 @@ for rank, run, drm_type in tqdm(
         run=run,
     )
 
+
+for rank, run, drm_type in tqdm(
+    list(product(ranks, runs, drm_types)), desc="HMT"
+):
+    experiment.do_experiment(
+        tensor,
+        "HMT",
+        experiment_hmt_sketch,
+        rank=rank,
+        drm_type=drm_type,
+        run=run,
+    )
+
 for rank in tqdm(ranks, desc="TT-SVD"):
     experiment.do_experiment(tensor, "TT-SVD", experiment_tt_svd, rank=rank)
 
@@ -79,27 +99,47 @@ ttsvd = df[df["name"] == "TT-SVD"]
 
 ssketch = df[df["name"] == "OTTS"]
 plot_ranks = ssketch["left_rank"].unique()
-plt.plot(plot_ranks, ttsvd.error.values, "-", label="TT-SVD")
+plt.plot(plot_ranks, ttsvd.error.values, "-o", label="TT-SVD", ms=3)
 
+# drms = {
+#     "DenseGaussianDRM": "OTTS, Gaussian DRM",
+#     "TensorTrainDRM": "OTTS, TT-DRM",
+# }
+# for i, (drm, drm_name) in enumerate(drms.items()):
+#     error_gb = (
+#         ssketch[ssketch["left_drm_type"] == drm].groupby("left_rank").error
+#     )
+#     errors05 = error_gb.quantile(0.5).values
+#     errors08 = error_gb.quantile(0.8).values - errors05
+#     errors02 = errors05 - error_gb.quantile(0.2).values
+#     plt.errorbar(
+#         plot_ranks - 0.05 * (i + 0.5),
+#         errors05,
+#         yerr=np.stack([errors02, errors08]),
+#         label=drm_name,
+#         capsize=3,
+#         linestyle="",
+#     )
+
+ssketch = df[df["name"] == "HMT"]
 drms = {
-    "DenseGaussianDRM": "OTTS, Gaussian DRM",
-    "TensorTrainDRM": "OTTS, TT-DRM",
+    "DenseGaussianDRM": "TT-HMT, Gaussian DRM",
+    "TensorTrainDRM": "TT-HMT, TT-DRM",
 }
 for i, (drm, drm_name) in enumerate(drms.items()):
-    error_gb = (
-        ssketch[ssketch["left_drm_type"] == drm].groupby("left_rank").error
-    )
+    error_gb = ssketch[ssketch["drm_type"] == drm].groupby("rank").error
     errors05 = error_gb.quantile(0.5).values
     errors08 = error_gb.quantile(0.8).values - errors05
     errors02 = errors05 - error_gb.quantile(0.2).values
     plt.errorbar(
-        plot_ranks - 0.05 * (i + 0.5),
+        plot_ranks - 0.15 * (1.5 - i),
         errors05,
         yerr=np.stack([errors02, errors08]),
         label=drm_name,
         capsize=3,
         linestyle="",
     )
+
 
 ssketch = df[df["name"] == "STTA"]
 drms = {
@@ -114,7 +154,7 @@ for i, (drm, drm_name) in enumerate(drms.items()):
     errors08 = error_gb.quantile(0.8).values - errors05
     errors02 = errors05 - error_gb.quantile(0.2).values
     plt.errorbar(
-        plot_ranks + 0.05 * (i + 0.5),
+        plot_ranks + 0.15 * (i + 0.5),
         errors05,
         yerr=np.stack([errors02, errors08]),
         label=drm_name,
@@ -130,3 +170,5 @@ plt.legend()
 plt.title("Approximation of Hilbert tensor")
 plt.savefig("results/plot-hilbert.pdf", transparent=True, bbox_inches="tight")
 plt.show()
+
+# %%

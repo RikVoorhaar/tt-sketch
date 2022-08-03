@@ -2,7 +2,7 @@
 
 Fast sketching algorithms for computing Tensor Train decompositions of a variety of tensorial data.
 
-This software is companion to the preprint arXiv:2206.XXXXX.
+This software implements the algorithms discussed in the preprint arXiv:2208.XXXXX.
 
 ## Installation
 
@@ -21,7 +21,7 @@ pip install .
 ```
 
 ## Reproducing numerical experiments
-All numerical experiments in the preprint can be reproduced using the scripts starting with `plot_` in the `scripts` directory. All experiments were produced using version 1.0 of this software. The dependencies for running these scripts, as well as running the tests or building the documentation, are listed in `environment.yml`.
+All numerical experiments in the preprint can be reproduced using the scripts starting with `plot_` in the `scripts` directory. All experiments were produced using version 1.1 of this software. The dependencies for running these scripts, as well as running the tests or building the documentation, are listed in `environment.yml`.
 
 ## Documentation
 The documentation for this project lives here: [tt-sketch.readthedocs.io](https://tt-sketch.readthedocs.io).
@@ -34,8 +34,9 @@ This software is free to use and edit. When using this software for academic pur
 ```
 @article{
     title = {Streaming tensor train approximation},
-    journal = {arXiv:2206.XXXXX},
+    journal = {arXiv:2208.XXXXX},
     author = {Kressner, Daniel and Vandereycken, Bart and Voorhaar, Rik},
+    doi = {},
     year = {2022}, 
 }
 ```

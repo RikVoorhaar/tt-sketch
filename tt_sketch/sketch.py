@@ -15,7 +15,7 @@ from tt_sketch.drm import (
 )
 from tt_sketch.drm_base import DRM, CanIncreaseRank, CanSlice
 from tt_sketch.sketch_container import SketchContainer
-from tt_sketch.sketch_dispatch import general_sketch
+from tt_sketch.sketch_dispatch import SketchMethod, general_sketch
 from tt_sketch.sketching_methods.abstract_methods import (
     CansketchCP,
     CansketchDense,
@@ -39,6 +39,43 @@ DEFAULT_DRM = {
 }
 
 BlockedSketch = Dict[Tuple[int, int], SketchContainer]
+
+
+def hmt_sketch(
+    tensor: Tensor,
+    rank: TTRank,
+    seed: Optional[int] = None,
+    drm_type: Optional[Type[DRM]] = None,
+    drm: Optional[DRM] = None,
+    return_drm: bool = False,
+) -> TensorTrain:
+    """
+    Perform an orthogonal sketch of a tensor
+    """
+    d = len(tensor.shape)
+
+    if seed is None:
+        seed = np.mod(hash(np.random.uniform()), 2**32)
+
+    if drm is None:
+        if drm_type is None:
+            drm_type = TensorTrainDRM
+        rank = process_tt_rank(rank, tensor.shape, trim=True)
+        drm = drm_type(rank, transpose=True, shape=tensor.shape, seed=seed)
+    else:
+        if tuple(drm.rank[::-1]) != rank:
+            raise ValueError(
+                f"Right rank {rank} does not match the rank of the DRM "
+                f"{drm.rank}."
+            )
+
+    sketch = general_sketch(tensor, None, drm, method=SketchMethod.hmt)
+
+    sketched = TensorTrain(sketch.Psi_cores)
+    if return_drm:  # this really is mostly for testing purposes
+        return sketched, drm, right_drm  # type: ignore
+    else:
+        return sketched
 
 
 def orthogonal_sketch(
@@ -103,7 +140,9 @@ def orthogonal_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=True)
+    sketch = general_sketch(
+        tensor, left_drm, right_drm, method=SketchMethod.orthogonal
+    )
 
     sketched = TensorTrain(sketch.Psi_cores)
     if return_drm:  # this really is mostly for testing purposes
@@ -179,7 +218,9 @@ def stream_sketch(
                 f"{right_drm.rank}."
             )
 
-    sketch = general_sketch(tensor, left_drm, right_drm, orthogonalize=False)
+    sketch = general_sketch(
+        tensor, left_drm, right_drm, method=SketchMethod.streaming
+    )
 
     sketched = SketchedTensorTrain(sketch, left_drm, right_drm)
     if return_drm:  # this really is mostly for testing purposes
@@ -233,7 +274,7 @@ class SketchedTensorTrain(Tensor):
     @property
     def T(self) -> SketchedTensorTrain:
         new_sketch = self.sketch_.T
-        return self.__class__(new_sketch)
+        return self.__class__(new_sketch, self.right_drm.T, self.left_drm.T)
 
     def to_tt(self) -> TensorTrain:
         return TensorTrain(self.C_cores())
@@ -262,14 +303,18 @@ class SketchedTensorTrain(Tensor):
     def increase_rank(
         self,
         tensor: Tensor,
-        new_left_rank: Tuple[int, ...],
-        new_right_rank: Tuple[int, ...],
+        new_left_rank: TTRank,
+        new_right_rank: TTRank,
     ) -> SketchedTensorTrain:
         """Increase the rank of the approximation by performing a new sketch.
 
         Requires DRM with support for the ``CanIncreaseRank`` protocol, which
         currently is only supported by ``SparseGaussianDRM``.
         """
+        new_left_rank = process_tt_rank(new_left_rank, tensor.shape, trim=False)
+        new_right_rank = process_tt_rank(
+            new_right_rank, tensor.shape, trim=False
+        )
         for drm in (self.left_drm, self.right_drm):
             if not isinstance(drm, CanSlice):
                 drm_name = drm.__class__.__name__
@@ -318,8 +363,8 @@ class SketchedTensorTrain(Tensor):
 
 def _blocked_stream_sketch_components(
     tensor: Tensor,
-    left_sketch: CanSlice,
-    right_sketch: CanSlice,
+    left_rm: CanSlice,
+    right_drm: CanSlice,
     left_rank_slices: List[Tuple[int, ...]],
     right_rank_slices: List[Tuple[int, ...]],
     excluded_entries: Optional[Sequence[Tuple[int, int]]] = None,
@@ -327,11 +372,11 @@ def _blocked_stream_sketch_components(
     if excluded_entries is None:
         excluded_entries = []
     block_left_sketches = [
-        left_sketch.slice(rank1, rank2)
+        left_rm.slice(rank1, rank2)
         for rank1, rank2 in zip(left_rank_slices[:-1], left_rank_slices[1:])
     ]
     block_right_sketches = [
-        right_sketch.slice(rank1, rank2)
+        right_drm.slice(rank1, rank2)
         for rank1, rank2 in zip(right_rank_slices[:-1], right_rank_slices[1:])
     ]
 
@@ -345,7 +390,7 @@ def _blocked_stream_sketch_components(
                 tensor,
                 left_sketch_slice,
                 right_sketch_slice,
-                orthogonalize=False,
+                method=SketchMethod.streaming,
             )
             sketch_dict[(i, j)] = sketch_block
 
@@ -354,7 +399,6 @@ def _blocked_stream_sketch_components(
 
 def assemble_sketched_tt(
     sketch: SketchContainer,
-    eps: float = 1e-15,
     direction="auto",
 ) -> ArrayList:
     """Reconstructs a TT from a sketch, using Psi and Omega matrices."""

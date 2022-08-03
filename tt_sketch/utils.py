@@ -1,4 +1,6 @@
 # %%
+import concurrent.futures
+import multiprocessing
 from functools import reduce
 from operator import mul
 from typing import Generator, List, Optional, Sequence, Tuple, Union
@@ -6,6 +8,8 @@ from typing import Generator, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 import scipy.linalg
+
+# from numpy.random import Generator, SeedSequence, default_rng
 from numpy.typing import ArrayLike
 
 ArrayList = List[npt.NDArray[np.float64]]
@@ -40,9 +44,11 @@ def power_decay_tensor(
 ) -> ArrayLike:
     """Create tensor of specified shape such that singular values of each
     unfolding decay with a power law."""
-    if seed is not None:
-        np.random.seed(np.mod(seed, 2**32 - 1))
-    A = np.random.normal(size=shape)
+    # if seed is not None:
+    #     np.random.seed(np.mod(seed, 2**32 - 1))
+    seq = SeedSequence(seed)
+    A_seed = seq.generate_state(1)[0]
+    A = random_normal(shape=shape, seed=A_seed)
     for mode in range(len(A.shape)):
         A_mat = matricize(A, mode)
         U, S, V = np.linalg.svd(A_mat, full_matrices=False)
@@ -167,3 +173,55 @@ def process_tt_rank(
         rank_tuple = trim_ranks(shape, rank_tuple)
 
     return rank_tuple
+
+
+class MultithreadedRNG:
+    """
+    Multithreaded standard normal random number generator.
+
+    Copy pasta from numpy docs
+    """
+
+    def __init__(self, shape, seed=None, threads=None):
+        if threads is None:
+            threads = multiprocessing.cpu_count()
+        self.threads = threads
+
+        seq = np.random.SeedSequence(seed)
+        self._random_generators = [
+            np.random.default_rng(s) for s in seq.spawn(threads)
+        ]
+
+        self.shape = shape
+        n = np.prod(shape)
+        self.executor = concurrent.futures.ThreadPoolExecutor(threads)
+        self.values = np.empty(n)
+        self.step = np.ceil(n / threads).astype(np.int_)
+        self.fill()
+
+    def fill(self):
+        def _fill(random_state, out, first, last):
+            random_state.standard_normal(out=out[first:last])
+
+        futures = {}
+        for i in range(self.threads):
+            args = (
+                _fill,
+                self._random_generators[i],
+                self.values,
+                i * self.step,
+                (i + 1) * self.step,
+            )
+            futures[self.executor.submit(*args)] = i
+        concurrent.futures.wait(futures)
+        self.values = self.values.reshape(self.shape)
+
+    # def __del__(self):
+    #     self.executor.shutdown(False)
+
+
+def random_normal(shape, seed=None):
+    """
+    Generate multi-threaded random numbers
+    """
+    return MultithreadedRNG(shape, seed).values

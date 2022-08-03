@@ -4,11 +4,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 from typing import (
     Iterable,
     List,
     Optional,
     Sequence,
+    Dict,
     Tuple,
     Union,
     TypeVar,
@@ -17,9 +19,10 @@ from typing import (
 import warnings
 
 import numpy as np
+from numpy.random import SeedSequence
 import numpy.typing as npt
 
-from tt_sketch.utils import ArrayList, TTRank, process_tt_rank
+from tt_sketch.utils import ArrayList, TTRank, process_tt_rank, random_normal
 
 TType = TypeVar("TType", bound="Tensor")
 
@@ -47,34 +50,35 @@ class Tensor(ABC):
         """Converts the tensor to a (dense) numpy array of same shape."""
 
     def error(
-        self: TType, other: TType, relative: bool = False, rmse: bool = False
+        self: TType,
+        other: TType,
+        relative: bool = False,
+        rmse: bool = False,
+        fast: bool = False,
     ) -> float:
-        """L2 error of the tensor"""
-        self_norm = self.norm()
+        """L2 error of the tensor.
+
+        If ``fast=True``, then error is computed using inner product formula.
+        This is not numerically stable, and gives inaccurate results below
+        relative errors of around 1e-8.
+        """
+        if isinstance(other, np.ndarray):
+            other = DenseTensor(other)
         other_norm = other.norm()
-        dot = self.dot(other)
-        error = np.sqrt(np.abs(self_norm**2 - 2 * dot + other_norm**2))
+        if fast:
+            self_norm = self.norm()
+            dot = self.dot(other)
+            norm_sum = self_norm**2 + other_norm**2
+            error = np.sqrt(norm_sum) * np.sqrt(np.abs(1 - 2 * dot / norm_sum))
+        else:
+            error = np.linalg.norm(self.to_numpy() - other.to_numpy())
         if relative:
+            if other_norm == 0:
+                return np.inf
             error /= other_norm
         if rmse:
-            error /= self.size
+            error /= np.sqrt(np.prod(self.shape))
         return error
-
-    def mse_error(self, other: Union[Tensor, npt.NDArray]) -> float:
-        """Computes the MSE error"""
-        warnings.warn("deprecated method", DeprecationWarning)
-        if isinstance(other, Tensor):
-            other = other.to_numpy()
-        square_error = np.linalg.norm(self.to_numpy() - other) ** 2
-        return square_error / np.prod(self.shape)
-
-    def relative_error(self, other: Union[Tensor, npt.NDArray]) -> float:
-        """Computes the relative error"""
-        warnings.warn("deprecated method", DeprecationWarning)
-        if isinstance(other, Tensor):
-            other = other.to_numpy()
-        error = np.linalg.norm(self.to_numpy() - other)
-        return float(error / np.linalg.norm(other))
 
     @property
     def ndim(self) -> int:
@@ -120,11 +124,6 @@ class Tensor(ABC):
             return other.dot(self)
         if not reverse:  # try first to see if other can dot self
             return other.dot(self, reverse=True)
-        warnings.warn(
-            f"Using fallback method for dot of {type(self)} and {type(other)}.",
-            RuntimeWarning,
-        )
-        print("generic method :(")
         self_np = self.to_numpy().reshape(-1)
         other_np = other.to_numpy().reshape(-1)
         return np.dot(self_np, other_np)
@@ -169,13 +168,6 @@ class DenseTensor(Tensor):
     def size(self) -> int:
         return np.prod(self.shape)
 
-    def __getitem__(self, key):
-        new_data = self.data.__getitem__(key)
-        return self.__class__(new_data)
-
-    def __setitem__(self, key, value):
-        self.data.__setitem__(key, value)
-
     def to_numpy(self) -> npt.NDArray[np.float64]:
         return self.data
 
@@ -184,6 +176,10 @@ class DenseTensor(Tensor):
 
     def __mul__(self, other: float) -> DenseTensor:
         return self.__class__(self.data * other)
+
+    @classmethod
+    def random(cls, shape: Tuple[int, ...]) -> DenseTensor:
+        return cls(random_normal(shape))
 
 
 @dataclass
@@ -251,6 +247,13 @@ class SparseTensor(Tensor):
             f" entries at {hex(id(self))}>"
         )
 
+    def dot(self, other: Tensor, reverse=False) -> float:
+        try:
+            other_entries = other.gather(self.indices)
+            return np.dot(other_entries, self.entries)
+        except AttributeError:
+            return super().dot(other, reverse=reverse)
+
     @classmethod
     def random(
         cls, shape: Tuple[int, ...], nnz: int, seed: Optional[int] = None
@@ -263,11 +266,29 @@ class SparseTensor(Tensor):
         total_size = np.prod(shape)
         indices_flat = np.random.choice(total_size, size=nnz, replace=False)
         indices = np.unravel_index(indices_flat, shape)
-        entries = np.random.normal(size=nnz)
+        entries = random_normal(shape=(nnz,), seed=seed)
         return cls(shape, indices, entries)
 
     def __mul__(self, other: float) -> SparseTensor:
         return self.__class__(self.shape, self.indices, self.entries * other)
+
+    def gather(
+        self, indices: Tuple[npt.NDArray, ...]
+    ) -> npt.NDArray[np.float64]:
+        """
+        Gathers the entries corresponding to the given indices.
+        """
+        dense_indices = np.ravel_multi_index(indices, self.shape)
+        out = np.zeros(len(dense_indices))
+        dic = self.dict
+        for i, ind in enumerate(dense_indices):
+            out[i] = dic.get(ind, 0.0)
+        return out
+
+    @cached_property
+    def dict(self) -> Dict[int, float]:
+        dense_indices = np.ravel_multi_index(self.indices, self.shape)
+        return {i: v for i, v in zip(dense_indices, self.entries)}
 
 
 class TensorTrain(Tensor):
@@ -306,6 +327,8 @@ class TensorTrain(Tensor):
         rank: TTRank,
         seed: Optional[int] = None,
         orthog: bool = False,
+        trim: Optional[bool] = None,
+        norm_goal: str = "norm-1",
     ) -> TensorTrain:
         """
         Generate random orthogonal tensor train cores
@@ -314,24 +337,41 @@ class TensorTrain(Tensor):
         mean and variance ``1 / r1 * n * r2``, so that expected Frobenius norm
         is 1.
 
-        If ``ortho`` is set to ``True``, all cores except the last are
-        left-orthogonalized.
+        If ``trim=True``, the ranks are trimmed; i.e. we enforce that r1*n>=r2
+        and r2*n>=r1a.
+
+        If ``orthog`` is set to ``True``, all cores except the last are
+        left-orthogonalized. Trim must be enabled in this case.
         """
-        if seed is not None:
-            np.random.seed(seed)
+
         d = len(shape)
-        rank = process_tt_rank(rank, shape, trim=False)
+        if trim is None:
+            trim = True if orthog else False
+        if orthog and not trim:
+            raise ValueError(
+                "Trimming must be enabled if orthogonalization is enabled."
+            )
+        rank = process_tt_rank(rank, shape, trim=trim)
         rank_augmented = (1,) + tuple(rank) + (1,)
+
         cores = []
+        seq = SeedSequence(seed)
+        seeds = seq.generate_state(d)
         for i in range(d):
             r1 = rank_augmented[i]
             r2 = rank_augmented[i + 1]
             n = shape[i]
-            core = np.random.normal(size=(r1 * n, r2))
+            core = random_normal(shape=(r1 * n, r2), seed=seeds[i])
+
             if orthog and i < d - 1:
                 core, _ = np.linalg.qr(core, mode="reduced")
+            elif norm_goal == "norm-1":
+                core /= np.sqrt(r1 * n)
+            elif norm_goal == "norm-preserve":
+                core /= np.sqrt(r1)
             else:
-                core /= np.sqrt(r1 * n * r2)
+                raise ValueError(f"Unknown norm goal: {norm_goal}")
+
             core = core.reshape(r1, n, r2)
             cores.append(core)
 
@@ -399,16 +439,27 @@ class TensorTrain(Tensor):
             result = next_step
         return result.reshape(-1)
 
+    def norm(self) -> float:
+        self_orth = self.orthogonalize()
+        return np.linalg.norm(self_orth.cores[-1])
+
     def round(
         self,
         eps: Optional[float] = None,
         max_rank: Optional[TTRank] = None,
+        orthogonalized: bool = False,
     ) -> TensorTrain:
         """Standard TT-SVD rounding scheme.
 
-        First left orthogonalize in LR sweep, then apply SVD-based rounding in
-        a RL sweep. Leaves the tensor right-orthogonalized."""
-        tt = self.orthogonalize()  # left-orthogonalize
+        First left orthogonalize in LR sweep, then apply SVD-based rounding in a
+        RL sweep. Leaves the tensor right-orthogonalized.
+
+        If the tensor is already orthogonalized, then pass
+        ``orthogonalized=True`` to avoid unnecessary re-orthogonalization."""
+        if not orthogonalized:
+            tt = self.orthogonalize()  # left-orthogonalize
+        else:
+            tt = self
         if eps is None:
             eps = 0
         if max_rank is None:
@@ -436,6 +487,8 @@ class TensorTrain(Tensor):
         """Return singular value of each mode"""
         tt = self.orthogonalize()
         svdvals = []
+        U: npt.NDArray
+        S: npt.NDArray
         for mu, C in list(enumerate(tt.cores))[::-1]:
             if mu < tt.ndim - 1:
                 US = U @ np.diag(S)
@@ -446,7 +499,7 @@ class TensorTrain(Tensor):
             else:
                 C_mat = C.reshape(C.shape[0] * C.shape[1], C.shape[2])
 
-            U, S, Vt = np.linalg.svd(C_mat)
+            U, S, _ = np.linalg.svd(C_mat)
             svdvals.append(S)
         svdvals = svdvals[::-1]
         return svdvals
@@ -492,9 +545,7 @@ class TensorTrain(Tensor):
 
         Result is computed in a left-to-right sweep.
         """
-        if not isinstance(other, TensorTrain):
-            return super().dot(other, reverse=reverse)
-        else:
+        if isinstance(other, TensorTrain):
             result = np.einsum("ijk,ljm->km", self.cores[0], other.cores[0])
             for core1, core2 in zip(self.cores[1:], other.cores[1:]):
                 # optimize reduces complexity from r^4*n to r^3*n
@@ -502,6 +553,8 @@ class TensorTrain(Tensor):
                     "ij,ika,jkb->ab", result, core1, core2, optimize="optimal"
                 )
             return np.sum(result)
+        else:
+            return super().dot(other, reverse=reverse)
 
     def orthogonalize(self) -> TensorTrain:
         """Do QR sweep to left-orthogonalize"""
@@ -524,19 +577,36 @@ class TensorTrain(Tensor):
             f" at {hex(id(self))}>"
         )
 
+    def error(
+        self: TType,
+        other: TType,
+        relative: bool = False,
+        rmse: bool = False,
+        fast: bool = False,
+    ) -> float:
+        """
+        L2 error of tensor, see docs for ``Tensor::error``.
 
-def diff_tt_sparse(tt: TensorTrain, sparse_tensor: SparseTensor) -> float:
-    """
-    Compute the (Frobenius) norm of the difference of a TT and a sparse tensor
-    """
-    norm_squared = (
-        tt.norm() ** 2
-        + sparse_tensor.norm() ** 2
-        - 2 * np.dot(tt.gather(sparse_tensor.indices), sparse_tensor.entries)
-    )
-    if norm_squared < 0:
-        return 0
-    return norm_squared**0.5
+        Overloads only the error between two Tensor Trains
+        using much faster accurate method.
+        """
+        try:  # Try coercing to TensorTrain
+            other = other.to_tt()
+        except AttributeError:
+            pass
+
+        if isinstance(other, TensorTrain):
+            error = self.add(-other).norm()
+            if relative:
+                other_norm = other.norm()
+                if other_norm == 0:
+                    return np.inf
+                error /= other_norm
+            if rmse:
+                error /= np.sqrt(np.prod(self.shape))
+            return error
+        else:
+            return super().error(other, relative=relative, rmse=rmse, fast=fast)
 
 
 class TensorSum(Generic[TType], Tensor):
@@ -636,12 +706,12 @@ class CPTensor(Tensor):
     def random(
         cls, shape: Tuple[int, ...], rank: int, seed: Optional[int] = None
     ) -> CPTensor:
-        if seed is not None:
-            np.random.seed(seed)
         d = len(shape)
+        seq = SeedSequence(seed)
+        seeds = seq.generate_state(d)
         cores = []
         for i in range(d):
-            core = np.random.normal(size=(shape[i], rank))
+            core = random_normal(shape=(shape[i], rank), seed=seeds[i])
             core /= np.sqrt(shape[i])
             cores.append(core)
 
@@ -668,7 +738,7 @@ class CPTensor(Tensor):
         )
 
     def __mul__(self, other: float) -> CPTensor:
-        new_cores = self.cores
+        new_cores = [c for c in self.cores]
         new_cores[0] = new_cores[0] * other
         return self.__class__(new_cores)
 
@@ -726,8 +796,6 @@ class TuckerTensor(Tensor):
         rank: Union[int, Tuple[int, ...]],
         seed: Optional[int] = None,
     ) -> TuckerTensor:
-        if seed is not None:
-            np.random.seed(seed)
         d = len(shape)
         try:
             rank_tuple = tuple(rank)  # type: ignore
@@ -735,10 +803,13 @@ class TuckerTensor(Tensor):
             rank_tuple = (rank,) * d  # type: ignore
         rank_tuple = tuple(min(r1, r2) for r1, r2 in zip(rank_tuple, shape))
 
-        core = np.random.normal(size=rank_tuple)
+        seq = SeedSequence(seed)
+        core_seed = seq.generate_state(1)[0]
+        core = random_normal(shape=rank_tuple, seed=core_seed)
         factors = []
-        for r, n in zip(rank_tuple, shape):
-            U = np.random.normal(size=(r, n))
+        seeds = seq.generate_state(d)
+        for r, n, seed in zip(rank_tuple, shape, seeds):
+            U = random_normal(shape=(r, n), seed=seed)
             U = np.linalg.qr(U.T)[0].T
             factors.append(U)
 

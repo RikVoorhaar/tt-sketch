@@ -4,8 +4,8 @@ from os.path import isfile
 from typing import Callable, Dict, Optional, Any
 
 import pandas as pd
-from tt_sketch.sketch import stream_sketch, orthogonal_sketch
-from tt_sketch.tensor import Tensor
+from tt_sketch.sketch import stream_sketch, orthogonal_sketch, hmt_sketch
+from tt_sketch.tensor import Tensor, TensorTrain
 from tt_sketch.tt_svd import tt_svd
 
 
@@ -48,7 +48,11 @@ class Experiment:
         return mask.sum() > 0
 
     def do_experiment(
-        self, input, name: str, experiment_func: Callable[..., Dict[str, Any]], **kwargs
+        self,
+        input,
+        name: str,
+        experiment_func: Callable[..., Dict[str, Any]],
+        **kwargs,
     ):
         """Do an experiment, and store results+metadata.
 
@@ -74,13 +78,10 @@ class Experiment:
             return
 
         # Do the experiment
-        time_zero = time.perf_counter()
         result = experiment_func(input, **kwargs)
-        time_taken = time.perf_counter() - time_zero
         for key, value in result.items():
             row[key] = value
         # row["error"] = result
-        row["time_taken"] = time_taken
 
         row_df = pd.DataFrame([row.values()], columns=row.keys())
         self.data = pd.concat([self.data, row_df], ignore_index=True)
@@ -94,9 +95,11 @@ def experiment_stream_sketch(
     right_rank=None,
     left_drm_type=None,
     right_drm_type=None,
-    error_func: Optional[Callable[..., float]] = None,
+    error_func=None,
+    recompression_rank=None,
     **kwargs,
 ) -> Dict[str, Any]:
+    start_time = time.perf_counter()
     tt_sketched = stream_sketch(
         input_tensor,
         left_rank=left_rank,
@@ -104,12 +107,16 @@ def experiment_stream_sketch(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.to_tt().round(max_rank=recompression_rank)
+        assert max(tt_sketched.rank) <= recompression_rank
+    time_taken = time.perf_counter() - start_time
 
     if error_func is not None:
-        error = error_func(input_tensor, tt_sketched)
+        error = error_func(tt_sketched, input_tensor)
     else:
         error = tt_sketched.error(input_tensor, relative=True)
-    return {"error": error}
+    return {"error": error, "time_taken": time_taken}
 
 
 def experiment_orthogonal_sketch(
@@ -118,9 +125,11 @@ def experiment_orthogonal_sketch(
     right_rank=None,
     left_drm_type=None,
     right_drm_type=None,
-    error_func: Optional[Callable[..., float]] = None,
+    error_func=None,
+    recompression_rank=None,
     **kwargs,
 ) -> Dict[str, Any]:
+    start_time = time.perf_counter()
     tt_sketched = orthogonal_sketch(
         input_tensor,
         left_rank=left_rank,
@@ -128,17 +137,57 @@ def experiment_orthogonal_sketch(
         left_drm_type=left_drm_type,
         right_drm_type=right_drm_type,
     )
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.round(max_rank=recompression_rank)
+    time_taken = time.perf_counter() - start_time
 
     if error_func is not None:
-        error = error_func(input_tensor, tt_sketched)
+        error = error_func(tt_sketched, input_tensor)
     else:
         error = tt_sketched.error(input_tensor, relative=True)
-    return {"error": error}
+    return {"error": error, "time_taken": time_taken}
+
+
+def experiment_hmt_sketch(
+    input_tensor: Tensor,
+    rank=None,
+    drm_type=None,
+    error_func=None,
+    recompression_rank=None,
+    **kwargs,
+):
+    start_time = time.perf_counter()
+    tt_sketched = hmt_sketch(input_tensor, rank=rank, drm_type=drm_type)
+    if recompression_rank is not None:
+        tt_sketched = tt_sketched.round(max_rank=recompression_rank)
+    time_taken = time.perf_counter() - start_time
+    if error_func is not None:
+        error = error_func(tt_sketched, input_tensor)
+    else:
+        error = tt_sketched.error(input_tensor, relative=True)
+    return {"error": error, "time_taken": time_taken}
 
 
 def experiment_tt_svd(
-    input_tensor: Tensor, rank=None, **kwargs
+    input_tensor: Tensor, rank=None, error_func=None, **kwargs
 ) -> Dict[str, Any]:
+    start_time = time.perf_counter()
     tt = tt_svd(input_tensor, rank=rank)
-    error = tt.error(input_tensor, relative=True)
-    return {"error": error}
+    time_taken = time.perf_counter() - start_time
+    if error_func is not None:
+        error = error_func(tt, input_tensor)
+    else:
+        error = tt.error(input_tensor, relative=True)
+    return {"error": error, "time_taken": time_taken}
+
+def experiment_tt_round(
+    input_tensor: TensorTrain, rank=None, error_func=None, **kwargs
+) -> Dict[str, Any]:
+    start_time = time.perf_counter()
+    tt = input_tensor.round(max_rank=rank)
+    time_taken = time.perf_counter() - start_time
+    if error_func is not None:
+        error = error_func(tt, input_tensor)
+    else:
+        error = tt.error(input_tensor, relative=True)
+    return {"error": error, "time_taken": time_taken}
