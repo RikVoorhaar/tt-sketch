@@ -94,7 +94,7 @@ import pandas as pd
 df = pd.read_csv(csv_filename)
 df
 # %%
-plt.figure(figsize=(8, 4))
+plt.figure(figsize=(6, 4))
 ttsvd = df[df["name"] == "TT-SVD"]
 
 ssketch = df[df["name"] == "OTTS"]
