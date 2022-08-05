@@ -2,7 +2,7 @@
 
 Fast sketching algorithms for computing Tensor Train decompositions of a variety of tensorial data.
 
-This software implements the algorithms discussed in the preprint arXiv:2208.XXXXX.
+This software implements the algorithms discussed in the preprint [arXiv:2208.02600](https://doi.org/10.48550/arXiv.2208.02600).
 
 ## Installation
 
@@ -34,9 +34,9 @@ This software is free to use and edit. When using this software for academic pur
 ```
 @article{
     title = {Streaming tensor train approximation},
-    journal = {arXiv:2208.XXXXX},
+    journal = {arXiv:2208.02600},
     author = {Kressner, Daniel and Vandereycken, Bart and Voorhaar, Rik},
-    doi = {},
+    doi = {10.48550/arXiv.2208.02600},
     year = {2022}, 
 }
 ```
