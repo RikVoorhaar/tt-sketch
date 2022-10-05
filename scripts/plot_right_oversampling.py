@@ -45,15 +45,17 @@ oversampling_params = range(2, 41, 2)
 
 runs = range(100)
 
-# for right_rank, run in tqdm(list(product(right_ranks, runs)), desc="OTTS"):
-#     experiment.do_experiment(
-#         tensor,
-#         "OTTS",
-#         experiment_orthogonal_sketch,
-#         left_rank=left_rank,
-#         right_rank=right_rank,
-#         run=run,
-#     )
+for oversampling, run in tqdm(
+    list(product(oversampling_params, runs)), desc="OTTS"
+):
+    experiment.do_experiment(
+        tensor,
+        "OTTS",
+        experiment_orthogonal_sketch,
+        left_rank=left_rank,
+        right_rank=left_rank + oversampling,
+        run=run,
+    )
 
 for oversampling, run in tqdm(
     list(product(oversampling_params, runs)), desc="STTA"
@@ -79,7 +81,7 @@ experiment.do_experiment(
 df = pd.read_csv(csv_filename)
 
 plt.figure(figsize=(8, 4))
-ttsvd = df[(df["name"] == "tt_svd") & (df["rank"] == left_rank-2)]
+ttsvd = df[(df["name"] == "tt_svd") & (df["rank"] == left_rank - 2)]
 # plt.axhline(ttsvd["error"].iloc[0], ls="--", color="k", label="TT-SVD")
 
 # rsketch = df[df["name"] == "OTTS"]

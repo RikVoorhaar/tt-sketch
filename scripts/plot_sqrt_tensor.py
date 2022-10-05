@@ -87,32 +87,14 @@ import pandas as pd
 df = pd.read_csv(csv_filename)
 df
 # %%
-plt.figure(figsize=(6, 4))
+plt.figure(figsize=(11, 4.5))
 ttsvd = df[df["name"] == "TT-SVD"]
 
 ssketch = df[df["name"] == "OTTS"]
 plot_ranks = ssketch["left_rank"].unique()
 plt.plot(plot_ranks, ttsvd.error.values, "-o", label="TT-SVD", ms=3)
 
-# drms = {
-#     "DenseGaussianDRM": "OTTS, Gaussian DRM",
-#     "TensorTrainDRM": "OTTS, TT-DRM",
-# }
-# for i, (drm, drm_name) in enumerate(drms.items()):
-#     error_gb = (
-#         ssketch[ssketch["left_drm_type"] == drm].groupby("left_rank").error
-#     )
-#     errors05 = error_gb.quantile(0.5).values
-#     errors08 = error_gb.quantile(0.8).values - errors05
-#     errors02 = errors05 - error_gb.quantile(0.2).values
-#     plt.errorbar(
-#         plot_ranks - 0.05 * (i + 0.5),
-#         errors05,
-#         yerr=np.stack([errors02, errors08]),
-#         label=drm_name,
-#         capsize=3,
-#         linestyle="",
-#     )
+plot_positions = np.linspace(-1,1,6)*.3
 
 hsketch = df[df["name"] == "HMT"]
 drms = {
@@ -125,7 +107,7 @@ for i, (drm, drm_name) in enumerate(drms.items()):
     errors08 = error_gb.quantile(0.8).values - errors05
     errors02 = errors05 - error_gb.quantile(0.2).values
     plt.errorbar(
-        plot_ranks - 0.15 * (1.5-i),
+        plot_ranks + plot_positions[i],
         errors05,
         yerr=np.stack([errors02, errors08]),
         label=drm_name,
@@ -146,7 +128,28 @@ for i, (drm, drm_name) in enumerate(drms.items()):
     errors08 = error_gb.quantile(0.8).values - errors05
     errors02 = errors05 - error_gb.quantile(0.2).values
     plt.errorbar(
-        plot_ranks + 0.15 * (i + 0.5),
+        plot_ranks + plot_positions[2+i],
+        errors05,
+        yerr=np.stack([errors02, errors08]),
+        label=drm_name,
+        capsize=3,
+        linestyle="",
+    )
+
+ssketch = df[df["name"] == "OTTS"]
+drms = {
+    "DenseGaussianDRM": "OTTS, Gaussian DRM",
+    "TensorTrainDRM": "OTTS, TT-DRM",
+}
+for i, (drm, drm_name) in enumerate(drms.items()):
+    error_gb = (
+        ssketch[ssketch["left_drm_type"] == drm].groupby("left_rank").error
+    )
+    errors05 = error_gb.quantile(0.5).values
+    errors08 = error_gb.quantile(0.8).values - errors05
+    errors02 = errors05 - error_gb.quantile(0.2).values
+    plt.errorbar(
+        plot_ranks + plot_positions[4+i],
         errors05,
         yerr=np.stack([errors02, errors08]),
         label=drm_name,

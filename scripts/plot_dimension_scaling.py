@@ -20,7 +20,7 @@ seed = 179
 tt_rank = 30
 round_rank = 10
 dim = 30
-n_dims_list = 2 ** np.arange(2, 14)
+n_dims_list = 2 ** np.arange(2, 9)
 runs = range(30)
 # %%
 
@@ -110,6 +110,17 @@ for n_dims in tqdm(n_dims_list):
             n_dims=n_dims,
             error_func=tt_error_func,
         )
+        experiment.do_experiment(
+            tensor,
+            "OTTS",
+            experiment_stream_sketch,
+            left_rank=round_rank,
+            right_rank=round_rank * 2,
+            run=run,
+            n_dims=n_dims,
+            error_func=tt_error_func,
+        )
+
 
 
 # %%
@@ -127,13 +138,15 @@ from matplotlib.ticker import ScalarFormatter, NullFormatter, AutoMinorLocator
 
 plt.figure(figsize=(8, 4))
 marker_size = 4
-markers = ["o", "o", "D", "s"]
+markers = ["o", "o", "D", "s", "x"]
+jitter_factor = 1.08
 jitter_dict = {
-    "HMT": 1 / 1.05,
-    "STTA": 1.05,
+    "HMT": 1 / jitter_factor,
+    "STTA": 1,
+    "OTTS": jitter_factor
 }
 for name, marker in zip(
-    ("TT-SVD, rank 8", "TT-SVD, rank 9", "HMT", "STTA"), markers
+    ("TT-SVD, rank 8", "TT-SVD, rank 9", "HMT", "STTA", "OTTS"), markers
 ):
     if name == "TT-SVD, rank 8":
         df_subset = df[(df["rank"] == 8) & (df["name"] == "TT-SVD")]

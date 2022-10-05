@@ -81,25 +81,8 @@ for rank in tqdm(ranks, desc="TT-SVD"):
 import pandas as pd
 
 df = pd.read_csv(csv_filename)
-plt.figure(figsize=(10, 4))
+plt.figure(figsize=(11, 4.5))
 ttsvd = df[df["name"] == "TT-SVD"]
-
-# rsketch = df[df["name"] == "OTTS"]
-# plot_ranks = rsketch["left_rank"].unique()
-
-# error_gb = rsketch.groupby(rsketch["left_rank"]).error
-# errors05 = error_gb.quantile(0.5).values
-# errors08 = error_gb.quantile(0.8).values - errors05
-# errors02 = errors05 - error_gb.quantile(0.2).values
-# plt.errorbar(
-#     plot_ranks - 0.05,
-#     errors05,
-#     yerr=np.stack([errors02, errors08]),
-#     label="OTTS, TT-DRM",
-#     capsize=3,
-#     linestyle="",
-# )
-
 
 ssketch = df[df["name"] == "HMT"]
 plot_ranks  = ssketch["rank"].unique()
@@ -109,7 +92,7 @@ errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks - 0.1,
+    plot_ranks - 0.12,
     errors05,
     yerr=np.stack([errors02, errors08]),
     label="TT-HMT, TT-DRM",
@@ -123,10 +106,24 @@ errors05 = error_gb.quantile(0.5).values
 errors08 = error_gb.quantile(0.8).values - errors05
 errors02 = errors05 - error_gb.quantile(0.2).values
 plt.errorbar(
-    plot_ranks + 0.1,
+    plot_ranks + 0.0,
     errors05,
     yerr=np.stack([errors02, errors08]),
     label="STTA, TT-DRM",
+    capsize=3,
+    linestyle="",
+)
+
+ssketch = df[df["name"] == "OTTS"]
+error_gb = ssketch.groupby("left_rank").error
+errors05 = error_gb.quantile(0.5).values
+errors08 = error_gb.quantile(0.8).values - errors05
+errors02 = errors05 - error_gb.quantile(0.2).values
+plt.errorbar(
+    plot_ranks + 0.12,
+    errors05,
+    yerr=np.stack([errors02, errors08]),
+    label="OTTS, TT-DRM",
     capsize=3,
     linestyle="",
 )
