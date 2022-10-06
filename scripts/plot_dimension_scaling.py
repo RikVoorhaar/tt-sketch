@@ -10,6 +10,7 @@ from experiment_base import (
     Experiment,
     experiment_stream_sketch,
     experiment_tt_round,
+    experiment_orthogonal_sketch,
     experiment_hmt_sketch,
 )
 
@@ -20,7 +21,7 @@ seed = 179
 tt_rank = 30
 round_rank = 10
 dim = 30
-n_dims_list = 2 ** np.arange(2, 14)
+n_dims_list = 2 ** np.arange(2, 11)
 runs = range(30)
 # %%
 
@@ -113,7 +114,7 @@ for n_dims in tqdm(n_dims_list):
         experiment.do_experiment(
             tensor,
             "OTTS",
-            experiment_stream_sketch,
+            experiment_orthogonal_sketch,
             left_rank=round_rank,
             right_rank=round_rank * 2,
             run=run,
@@ -159,13 +160,6 @@ for name, marker in zip(
     df_gb_median = df_subset.groupby("n_dims").median()
     if name.startswith("TT-SVD"):
         continue
-        plt.plot(
-            df_gb_median.index,
-            df_gb_median["error"] / tt_svd,
-            marker=marker,
-            markersize=marker_size,
-            label=label_name,
-        )
     else:
         error80 = (
             df[df["name"] == name].groupby("n_dims")["error"].quantile(0.8)
@@ -208,5 +202,3 @@ plt.ylabel("Normalized error")
 plt.savefig(
     "results/plot-dimension-scaling.pdf", transparent=True, bbox_inches="tight"
 )
-
-# %%
