@@ -20,7 +20,7 @@ seed = 179
 tt_rank = 30
 round_rank = 10
 dim = 30
-n_dims_list = 2 ** np.arange(2, 9)
+n_dims_list = 2 ** np.arange(2, 14)
 runs = range(30)
 # %%
 
