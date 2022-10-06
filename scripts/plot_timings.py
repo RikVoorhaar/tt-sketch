@@ -27,7 +27,7 @@ from tt_sketch.tensor import TensorTrain
 
 csv_filename = "results/timings150.csv"
 
-num_runs = 100
+num_runs = 20
 runs = list(range(num_runs))
 shape = (100,) * 5
 experiment = Experiment(csv_filename)
@@ -123,37 +123,37 @@ for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="STTA+3"):
         error_func=tt_error_func,
     )
 
-# for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTS+3"):
-#     # tensor = TensorTrain.random(shape, rank=tt_rank)
-#     # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
-#     tensor = tensors[run]
-#     experiment.do_experiment(
-#         tensor,
-#         "OTTS+3",
-#         experiment_orthogonal_sketch,
-#         left_rank=sketch_rank,
-#         right_rank=sketch_rank + 3,
-#         tensor_rank=tt_rank,
-#         sketch_rank=sketch_rank,
-#         run=run,
-#         error_func=tt_error_func,
-#     )
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTS+3"):
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
+    experiment.do_experiment(
+        tensor,
+        "OTTS+3",
+        experiment_orthogonal_sketch,
+        left_rank=sketch_rank,
+        right_rank=sketch_rank + 3,
+        tensor_rank=tt_rank,
+        sketch_rank=sketch_rank,
+        run=run,
+        error_func=tt_error_func,
+    )
 
-# for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTSx2"):
-#     # tensor = TensorTrain.random(shape, rank=tt_rank)
-#     # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
-#     tensor = tensors[run]
-#     experiment.do_experiment(
-#         tensor,
-#         "OTTSx2",
-#         experiment_orthogonal_sketch,
-#         left_rank=sketch_rank,
-#         right_rank=sketch_rank * 2,
-#         tensor_rank=tt_rank,
-#         sketch_rank=sketch_rank,
-#         run=run,
-#         error_func=tt_error_func,
-#     )
+for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="OTTSx2"):
+    # tensor = TensorTrain.random(shape, rank=tt_rank)
+    # tensor = tt_exp_decay(shape, tt_rank, seed=SEED + run)
+    tensor = tensors[run]
+    experiment.do_experiment(
+        tensor,
+        "OTTSx2",
+        experiment_orthogonal_sketch,
+        left_rank=sketch_rank,
+        right_rank=sketch_rank * 2,
+        tensor_rank=tt_rank,
+        sketch_rank=sketch_rank,
+        run=run,
+        error_func=tt_error_func,
+    )
 
 for run, sketch_rank in tqdm(list(product(runs, sketch_ranks)), desc="HMT"):
     # tensor = TensorTrain.random(shape, rank=tt_rank, seed=SEED + run)
@@ -180,6 +180,8 @@ df = pd.read_csv(csv_filename)
 label_dic = {
     "STTAx2": "STTAx2, TT-DRM",
     "STTA+3": "STTA+3, TT-DRM",
+    "OTTSx2": "OTTSx2, TT-DRM",
+    "OTTS+3": "OTTS+3, TT-DRM",
     "HMT": "TT-HMT, TT-DRM",
 }
 df = df[df["name"].isin(label_dic)]
@@ -213,8 +215,8 @@ timing_df = (
 max_xtick = np.ceil(timing_df.time50.max() * 10 + 1) / 10
 timing_df.name.unique()
 # %%
-markers = ["s", "o", "D"]
-for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
+markers = ["s", "o", "D","x","+"]
+for i, label in enumerate(("HMT", "STTA+3", "STTAx2","OTTS+3","OTTSx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
@@ -233,15 +235,15 @@ plt.ylabel("Relative error")
 plt.xlabel("Time taken (s)")
 plt.legend()
 plt.yscale("log")
-# plt.xscale("log")
-plt.xlim(0, None)
+plt.xscale("log")
+# plt.xlim(0, None)
 plt.title("Error vs. time taken")
-plt.xticks(np.arange(0, max_xtick, 0.1))
+# plt.xticks(np.arange(0, max_xtick, 0.1))
 plt.savefig("results/timings1.pdf", transparent=True, bbox_inches="tight")
 
 # %%
-markers = ["s", "o", "D"]
-for i, label in enumerate(("HMT", "STTA+3", "STTAx2")):
+markers = ["s", "o", "D","x","+"]
+for i, label in enumerate(("HMT", "STTA+3", "STTAx2","OTTS+3","OTTSx2")):
     sub_df = timing_df[(timing_df.name == label)]
 
     plt.plot(
@@ -259,8 +261,8 @@ plt.xlabel("TT-rank of sketch")
 plt.ylabel("Time taken (s)")
 plt.legend()
 plt.yticks(np.arange(0, max_xtick, 0.2))
-# plt.yscale("log")
-plt.ylim(0, None)
+plt.yscale("log")
+# plt.ylim(0, None)
 plt.xlim(0, None)
 # plt.xticks(np.concatenate([np.arange(5, 151, 10)]))
 plt.xticks(timing_df.sketch_rank.unique())

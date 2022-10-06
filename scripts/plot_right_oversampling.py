@@ -80,21 +80,8 @@ experiment.do_experiment(
 # %%
 df = pd.read_csv(csv_filename)
 
-plt.figure(figsize=(8, 4))
+plt.figure(figsize=(11, 4.5))
 ttsvd = df[(df["name"] == "tt_svd") & (df["rank"] == left_rank - 2)]
-# plt.axhline(ttsvd["error"].iloc[0], ls="--", color="k", label="TT-SVD")
-
-# rsketch = df[df["name"] == "OTTS"]
-# right_ranks = rsketch["right_rank"].unique()
-# plot_ranks = right_ranks - left_rank
-# error_gb = rsketch.groupby(rsketch["right_rank"]).error
-# errors05 = error_gb.quantile(0.5).values
-# plt.plot(plot_ranks, errors05, marker=".", label="OTTS median")
-# errors08 = error_gb.quantile(0.8).values
-# plt.plot(plot_ranks, errors08, "--", label="OTTS 80th percentile")
-# errors02 = error_gb.quantile(0.2).values
-# plt.plot(plot_ranks, errors02, "--", label="OTTS 20th percentile")
-
 
 ssketch = df[df["name"] == "STTA"]
 right_ranks = ssketch["right_rank"].unique()
@@ -103,9 +90,20 @@ error_gb = ssketch.groupby(ssketch["right_rank"]).error
 errors05 = error_gb.quantile(0.5).values
 plt.plot(plot_ranks, errors05, marker=".", label="STTA median")
 errors08 = error_gb.quantile(0.8).values
-plt.plot(plot_ranks, errors08, "-.", label="80th percentile")
+plt.plot(plot_ranks, errors08, "-.", label="STTA 80th percentile")
 errors02 = error_gb.quantile(0.2).values
-plt.plot(plot_ranks, errors02, "-.", label="20th percentile")
+plt.plot(plot_ranks, errors02, "-.", label="STTA 20th percentile")
+
+ssketch = df[df["name"] == "OTTS"]
+right_ranks = ssketch["right_rank"].unique()
+plot_ranks = right_ranks - left_rank
+error_gb = ssketch.groupby(ssketch["right_rank"]).error
+errors05 = error_gb.quantile(0.5).values
+plt.plot(plot_ranks, errors05, marker=".", label="OTTS median")
+errors08 = error_gb.quantile(0.8).values
+plt.plot(plot_ranks, errors08, "-.", label="OTTS 80th percentile")
+errors02 = error_gb.quantile(0.2).values
+plt.plot(plot_ranks, errors02, "-.", label="OTTS 20th percentile")
 
 plt.yscale("log")
 plt.xticks(plot_ranks)
