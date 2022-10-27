@@ -75,6 +75,15 @@ class SketchContainer:
         return self.__class__(Psi_cores_new, Omega_mats_new)
 
     def __mul__(self, other: float) -> SketchContainer:
-        new_Psi_cores = deepcopy(self.Psi_cores)
-        new_Psi_cores[0] *= other
-        return self.__class__(new_Psi_cores, self.Omega_mats)
+        new_Psi_cores = [Psi * other for Psi in new_Psi_cores]
+        new_Omega_mats = [Omega * other for Omega in self.Omega_mats]
+        return self.__class__(new_Psi_cores, new_Omega_mats)
+
+    def __neg__(self) -> SketchContainer:
+        return self * -1
+
+    def __sub__(self, other: SketchContainer) -> SketchContainer:
+        return self + (-other)
+
+    def __truediv__(self, other: float) -> SketchContainer:
+        return self * (1 / other)
